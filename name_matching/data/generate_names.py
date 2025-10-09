@@ -106,7 +106,7 @@ class SyntheticNamesGenerator:
 def main():
     """Run generate names script"""
     parser = basic_argparser()
-    parser.description = "Synthetic Names Generation for Name Matching Model"
+    parser.description = "Synthetic Name Generation for Name Matching Model"
     parser.allow_abbrev = True
     optional = parser.add_argument_group("Optional arguments")
     optional.add_argument(
