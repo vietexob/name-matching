@@ -1,3 +1,4 @@
+import os
 import time
 import random
 import warnings
@@ -8,7 +9,11 @@ import pandas as pd
 
 from tqdm import tqdm
 from pathlib import Path
-from string import Template
+
+from openai import OpenAI
+from mistralai import Mistral
+from dotenv import load_dotenv
+
 from configparser import ConfigParser
 from typing import Any, Dict, List, Tuple
 
@@ -18,6 +23,7 @@ from name_matching.utils.cli import basic_argparser
 from name_matching.utils.utils import (
     generate_typo_name,
     process_text_standard,
+    generate_aliases
 )
 
 # Instantiate configuration class
@@ -25,6 +31,16 @@ config = read_config()
 
 # Suppress pandas warnings
 warnings.filterwarnings("ignore")
+
+# Load the environment variables
+load_dotenv()
+
+OPENAI_API_TOKEN = os.environ["OPENAI_API_KEY"]
+
+# AZURE_OPENAI_API_VERSION = os.environ["AZURE_OPENAI_API_VERSION"]
+# AZURE_OPENAI_DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+# AZURE_OPENAI_API_KEY = os.environ["AZURE_OPENAI_API_KEY"]
+# AZURE_OPENAI_ENDPOINT = os.environ["AZURE_OPENAI_ENDPOINT"]
 
 
 class TrainingDataGenerator:
@@ -359,28 +375,24 @@ def main():
     logger.info("GENERATING_POSITIVE_ALIASES_FOR_PERSON_ENTITIES")
     # Read the system prompt
     prompt_file = "data/pers_alias_prompt.txt"
-    alias_prompt = None
+    sys_prompt = None
     with open(prompt_file, 'r', encoding='utf-8') as file:
-        alias_prompt = file.read()
-    assert alias_prompt is not None, "System prompt cannot be read!"
+        sys_prompt = file.read()
 
-    full_name = df_train_person[full_name_col].tolist()[0]
-    first_name = df_train_person[first_name_col].tolist()[0]
-    last_name = df_train_person[last_name_col].tolist()[0]
-
-    PROMPT_TEMPLATE = Template(alias_prompt)
-    prompt = PROMPT_TEMPLATE.substitute(full_name=full_name, first_name=first_name, last_name=last_name)
-    print(prompt)
-    assert False
+    if sys_prompt is None or len(sys_prompt) == 0:
+        logger.error("UNEXPECTED_PIPELINE_TERMINATION")
+        raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
+    
+    # Initialize the client
+    client = OpenAI(api_key=OPENAI_API_TOKEN)
+    
 
     typo_names = [
         generate_typo_name(name, prob_flip=0.4)
-        for name in df_single_hyphens[full_name_col]
+        for name in df_train_person[full_name_col]
     ]
-    df_single_hyphens[abbrev_first_name_col] = abbrev_first_names
-    df_single_hyphens[titled_name_col] = list_titled_names
-    df_single_hyphens[titled_full_name_col] = list_titled_full_names
-    df_single_hyphens[typo_name_col] = typo_names
+    print(typo_names[:5])
+    
     logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGA")
     df_train_orga = generator.process_orga_entities(df_train_orga)
     orgas_trunc_types, orga_types = generator.remove_orga_types(df_train_orga)

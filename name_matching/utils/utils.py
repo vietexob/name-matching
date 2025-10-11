@@ -2,8 +2,10 @@ import re
 import random
 import string
 
+from typing import List
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from pydantic import BaseModel, Field
 
 from name_matching.config import read_config
 
@@ -16,6 +18,15 @@ ps = PorterStemmer()
 # Regex patterns
 STOPWORDS = [word.upper() for word in stopwords.words("english")]
 REPLACE_BY_SPACE_RE = re.compile("[/(){}\[\]\|@,;]")
+
+
+# Define the Pydantic model for the response
+class AliasesResponse(BaseModel):
+    aliases: List[str] = Field(
+        description="List of valid aliases for the given name",
+        max_length=10,
+        min_length=1
+    )
 
 
 def process_text_standard(
@@ -114,3 +125,69 @@ def generate_typo_name(name: str, prob_flip: float = 0.25) -> str:
 
     typo_name = " ".join(typo_name)
     return typo_name
+
+
+def get_mistral_response(client=None, system_prompt="", user_prompt="",
+                         model="mistral-small-latest", messages=[]):
+    """
+    Get response from Mistral model.
+    """
+
+    assert client is not None, "Mistral client cannot be None!"
+    assert model, "Model name cannot be empty!"
+    
+    if len(messages) == 0:
+        assert len(user_prompt) > 0, "User prompt cannot be empty!"
+        
+        chat_response = client.chat.complete(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                    "role": "user",
+                    "content": user_prompt,
+                },
+            ]
+        )
+    else:
+        chat_response = client.chat.complete(model=model, 
+                                             messages=messages)
+    
+    return chat_response.choices[0].message.content
+
+
+def generate_aliases(client, system_prompt, full_name, first_name, last_name):
+    """Generate aliases for a given name with prompt caching enabled."""
+
+    assert client is not None, "OpenAI client cannot be None!"
+    
+    # Create the user prompt with the parameters
+    user_prompt = f"Full name: {full_name}\nFirst name: {first_name}\nLast name: {last_name}"
+    
+    # Make the API call with prompt caching
+    response = client.chat.completions.parse(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system", 
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"}  # Enable caching
+                    }
+                ]
+            },
+            {"role": "user", "content": user_prompt}
+        ],
+        response_format=AliasesResponse,
+        temperature=0.7,
+        max_tokens=200
+    )
+    
+    # Extract the parsed Pydantic object
+    aliases_obj = response.choices[0].message.parsed
+    
+    # Return as comma-separated string
+    return ", ".join(aliases_obj.aliases)

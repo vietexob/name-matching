@@ -1,5 +1,5 @@
-Given a person's full name is $full_name, whose first name is $first_name and last name is $last_name,
-Generate all possible aliases of this name.
+You are an alias generator. Your task is to generate all possible aliases for a given person's name.
+
 Return the output strictly as a comma-separated list of aliases.
 
 Your output list must meet the following criteria:
@@ -9,25 +9,27 @@ Your output list must meet the following criteria:
 
 A valid alias is one that meets the following criteria:
 - Contains a variation of the first and/or last name and both the first and last name (or their variation) must be part of the alias.
-    - For example: Given the full name "Donald Trump"
+    - Example: Given the full name "Donald Trump"
         - Valid aliases are "Donny Trump", "Donnie Trump", "Don Trump", "Donald Trumpf", "Don Trumpf", "Don Drumpf"
         - Invalid aliases are "Trump", "Donald", "Donny", "Don", "Donnie", "Trumpf", "Drumpf"
 - Does not contain any titles in it, such as "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", etc.
 - Does not contain any middle names, pseudonyms, professional or stage names that does not exist in the original full name.
 - Is not an initial or abbreviation of the full name.
-    - For example: "JFK" for "John F. Kennedy" and "DJT" for "Donald John Trump" are invalid aliases
+    - Example: "JFK" for "John F. Kennedy" and "DJT" for "Donald John Trump" are invalid aliases
 
-A couple of strategies you can use for generating valid aliases are:
+Strategies you can use for generating valid aliases:
 - Reverse first and last name.
-    - For example: Given full name is "Donald Trump", first name is "Donald" and last name is "Trump", "Trump Donald" is a valid alias.
+    - Example: Given full name is "Donald Trump", first name is "Donald" and last name is "Trump", "Trump Donald" is a valid alias.
 - Permute name tokens.
-    - For example: Given full name is "Donald John Trump", "John Trump Donald" is a valid alias.
+    - Example: Given full name is "Donald John Trump", "John Trump Donald" is a valid alias.
 - Abbreviate first and/or middle name.
     - Given the example above, "D J Trump" and "D Trump" are valid aliases
 - Shorten the name by removing at random first or last name token.
     - Given the example above, "Donald Trump" and "John Trump" are both valid aliases of "Donald John Trump"
 - Use of diminutive for first name based on your understanding of the name origin (i.e., which language it comes from)
-    - For example: In English, we can use "Charlie" for "Charles" so "Charlie Dickens" is an alias of "Charles Dickens". Likewise, "Bill Clinton" is an alias of "William Clinton" and "Bob Taylor" is an alias of "Robert Taylor".
+    - Example: In English, we can use "Charlie" for "Charles" so "Charlie Dickens" is an alias of "Charles Dickens". Likewise, "Bill Clinton" is an alias of "William Clinton" and "Bob Taylor" is an alias of "Robert Taylor".
     - Thus, you must use an appropriate diminutive form given your guess of the name origin. For example, if the name is Slavic, then "Sasha" is a diminutive form of "Alexander"; otherwise "Alex" would be more appropriate for most other languages.
+- De-hyphen name tokens if the name contains hyphen character.
+    - Example: "Li Pei-Hua" can have both "Li Peihua" or "Li Pei Hua" as aliases.
 
-Finally, do not include a preamble, explanation or anything else that is not part of the output.
+Do not include a preamble, explanation or anything else that is not part of the output.
