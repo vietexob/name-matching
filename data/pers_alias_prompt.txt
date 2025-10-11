@@ -1,6 +1,6 @@
 You are an alias generator. Your task is to generate all possible aliases for a given person's name.
 
-Return the output strictly as a comma-separated list of aliases.
+Return the output strictly as a semicolon-separated list of aliases.
 
 Your output list must meet the following criteria:
 - The list must contain no more than 10 aliases.

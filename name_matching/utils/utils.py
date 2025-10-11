@@ -157,14 +157,17 @@ def get_mistral_response(client=None, system_prompt="", user_prompt="",
     return chat_response.choices[0].message.content
 
 
-def generate_aliases(client, system_prompt, full_name, first_name, last_name):
+def generate_aliases(client, system_prompt, full_name, first_name="", last_name=""):
     """Generate aliases for a given name with prompt caching enabled."""
 
     assert client is not None, "OpenAI client cannot be None!"
     
     # Create the user prompt with the parameters
-    user_prompt = f"Full name: {full_name}\nFirst name: {first_name}\nLast name: {last_name}"
-    
+    if first_name and last_name:
+        user_prompt = f"Full name: {full_name}\nFirst name: {first_name}\nLast name: {last_name}"
+    else:
+        user_prompt = f"Organization name: {full_name}"
+
     # Make the API call with prompt caching
     response = client.chat.completions.parse(
         model="gpt-4.1-mini",
@@ -190,4 +193,4 @@ def generate_aliases(client, system_prompt, full_name, first_name, last_name):
     aliases_obj = response.choices[0].message.parsed
     
     # Return as comma-separated string
-    return ", ".join(aliases_obj.aliases)
+    return "; ".join(aliases_obj.aliases)

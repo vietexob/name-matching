@@ -128,37 +128,6 @@ class TrainingDataGenerator:
 
         return self.df_train
 
-
-    def shorten_names(self, df_train: pd.DataFrame) -> List[str]:
-        """
-        Shortens the full names for positive example generation.
-
-        :param df_train: Training data frame
-        :return: List of modified names
-        """
-
-        pass
-
-    def abbreviate_orga_types(self, df_train: pd.DataFrame) -> List[str]:
-        """
-        Abbreviates (or unabbreviates) organization types (e.g., Ltd <-> Limited, Pte <-> Private)
-
-        :param df_train: Training data frame for organization entities
-        :return: List of orga names whose types are abbreviated (or vice versa)
-        """
-
-        pass
-
-    def remove_orga_types(self, df_train: pd.DataFrame) -> Tuple[List[str], List[str]]:
-        """
-        Removes organization types (e.g., Ltd, Inc, Corp, AG, SA, etc.)
-
-        :param df_train: Training data frame for organization entities
-        :return: Tuple of list of strings for orgas and extracted types
-        """
-
-        pass
-
     def generate_pos_mappings(
         self, df_train: pd.DataFrame, is_person: bool = True
     ) -> Dict[str, List[str]]:
@@ -379,45 +348,50 @@ def main():
     with open(prompt_file, 'r', encoding='utf-8') as file:
         sys_prompt = file.read()
 
-    if sys_prompt is None or len(sys_prompt) == 0:
+    if not sys_prompt:
         logger.error("UNEXPECTED_PIPELINE_TERMINATION")
         raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
     
     # Initialize the client
     client = OpenAI(api_key=OPENAI_API_TOKEN)
+    rand_idx = random.choice(range(len(df_train_person)))
+    person_name = df_train_person[full_name_col].iloc[rand_idx]
+    first_name = df_train_person[first_name_col].iloc[rand_idx]
+    last_name = df_train_person[last_name_col].iloc[rand_idx]
+    print(f"Person name: {person_name}, first name: {first_name}, last name: {last_name}")
+    aliases = generate_aliases(client, sys_prompt, full_name=person_name, first_name=first_name, last_name=last_name)
+    print(f"Generated aliases: {aliases}")
+    print("="*80)
     
-
-    typo_names = [
+    person_typos = [
         generate_typo_name(name, prob_flip=0.4)
         for name in df_train_person[full_name_col]
     ]
-    print(typo_names[:5])
     
-    logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGA")
-    df_train_orga = generator.process_orga_entities(df_train_orga)
-    orgas_trunc_types, orga_types = generator.remove_orga_types(df_train_orga)
-    # Apparently, orga_types are not used for anything
-    orgas_typos = [
-        generate_typo_name(name, prob_flip=0.35)  # TODO: extract var?
+    logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGANIZATION_ENTITIES")
+    rand_idx = random.choice(range(len(df_train_orga)))
+    orga_name = df_train_orga[full_name_col].iloc[rand_idx]
+    print(f"Organization name: {orga_name}")
+    
+    # Read the system prompt
+    prompt_file = "data/orga_alias_prompt.txt"
+    sys_prompt = None
+    with open(prompt_file, 'r', encoding='utf-8') as file:
+        sys_prompt = file.read()
+
+    if not sys_prompt:
+        logger.error("UNEXPECTED_PIPELINE_TERMINATION")
+        raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
+    aliases = generate_aliases(client, sys_prompt, full_name=orga_name)
+    print(f"Generated aliases: {aliases}")
+
+    orga_typos = [
+        generate_typo_name(name, prob_flip=0.35)
         for name in df_train_orga[full_name_col]
     ]
-    # Abbreviate and unabbreviate orga type as positive aliases
-    df_train_orga[abbrev_orga_type_col] = generator.abbreviate_orga_types(df_train_orga)
-    # Other strategies for orga-typed aliases
-    df_train_orga[orga_type_truncated_col] = orgas_trunc_types
-    df_train_orga[typo_name_col] = orgas_typos
-    df_train_orga[orga_type_col] = orga_types
-    logger.info("GENERATING_POSITIVE_ALIASES_FOR_HYPHENED_ORGA")
-    df_orga_hyphens = df_train_orga[df_train_orga[has_hyphen_col]]
-    logger.info("HYPHENED_ORGA_DF", df="df_orga_hyphens", shape=df_orga_hyphens.shape)
-    orig_full_names = df_orga_hyphens[full_name_col].tolist()
-    orig_abbrev_names = df_orga_hyphens[abbrev_orga_type_col].tolist()
-    orgas_trunc_types, orga_types = generator.remove_orga_types(df_orga_hyphens)
-    df_orga_hyphens[full_name_col] = df_orga_hyphens[dehyphened_last_name_col]
-    df_orga_hyphens[abbrev_orga_type_col] = orig_abbrev_names
-    df_orga_hyphens[orga_type_truncated_col] = orgas_trunc_types
-    df_orga_hyphens[typo_name_col] = orig_full_names
-    df_orga_hyphens[orga_type_col] = orga_types
+    # print(orga_typos[:10])
+    assert False
+
     # Reset all the indices
     df_person_single.reset_index(drop=True, inplace=True)
     df_single_hyphens.reset_index(drop=True, inplace=True)
