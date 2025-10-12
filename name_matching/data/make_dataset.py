@@ -11,11 +11,10 @@ from tqdm import tqdm
 from pathlib import Path
 
 from openai import OpenAI
-from mistralai import Mistral
 from dotenv import load_dotenv
 
+from typing import Any, Dict, List
 from configparser import ConfigParser
-from typing import Any, Dict, List, Tuple
 
 from name_matching.config import read_config
 from name_matching.log.logging import configure_structlog, configure_tqdm
@@ -129,39 +128,25 @@ class TrainingDataGenerator:
         return self.df_train
 
     def generate_pos_mappings(
-        self, df_train: pd.DataFrame, is_person: bool = True
+        self, full_names: List[str], list_aliases: List[List[str]]
     ) -> Dict[str, List[str]]:
         """
         Generates mappings for positive examples (first parties).
 
-        :param df_train: Training data frame
-        :param is_person: Whether it's for person or organization entities
+        :param full_names: List of full names
+        :param list_aliases: List of list of positive aliases
         :return: Dictionary of mappings
         """
 
-        if is_person:
-            pos_aliases = [
-                self.full_name_col,
-                self.reversed_full_name_col,
-                self.permuted_full_name_col,
-                self.abbrev_first_name_col,
-                self.titled_name_col,
-                self.titled_full_name_col,
-                self.shortened_name_col,
-                self.typo_name_col,
-            ]
-        else:
-            # Organization
-            pos_aliases = [
-                self.full_name_col,
-                self.abbrev_orga_type_col,
-                self.orga_type_truncated_col,
-                self.typo_name_col,
-            ]
         pos_mapping = {}
-        for i in tqdm(range(len(df_train))):
-            full_name = df_train[self.full_name_col][i]
-            aliases = [df_train[alias][i] for alias in pos_aliases]
+        for i in tqdm(range(len(full_names))):
+            full_name = full_names[i]
+            aliases = list_aliases[i]
+
+            if full_name not in aliases:
+                # Ensure the full name is part of the aliases
+                aliases.insert(0, full_name)
+
             pos_mapping[full_name] = aliases
 
         return pos_mapping
@@ -188,44 +173,22 @@ class TrainingDataGenerator:
         return df_pairs
 
     def generate_neg_mappings(
-        self, df_train: pd.DataFrame, df_sample: pd.DataFrame, is_person: bool = True
+        self, df_train: pd.DataFrame, df_sample: pd.DataFrame
     ) -> Dict[str, List[str]]:
         """
         Generates mappings for negative examples (third parties).
 
         :param df_train: Training data frame
         :param df_sample: Data frame to sample negative examples from
-        :param is_person: Whether it's for person or organization entities
         :return: Dictionary of mappings
         """
 
-        # List of aliases
-        if is_person:
-            pos_aliases = [
-                self.full_name_col,
-                self.reversed_full_name_col,
-                self.permuted_full_name_col,
-                self.abbrev_first_name_col,
-                self.titled_name_col,
-                self.titled_full_name_col,
-                self.shortened_name_col,
-                self.typo_name_col,
-            ]
-        else:
-            # Organization
-            pos_aliases = [
-                self.full_name_col,
-                self.abbrev_orga_type_col,
-                self.orga_type_truncated_col,
-                self.typo_name_col,
-            ]
-
         neg_mapping = {}
-        for i in tqdm(range(len(df_train))):
-            full_name = df_train[self.full_name_col][i]
-            first_name = df_train[self.first_name_col][i]
-            last_name = df_train[self.last_name_col][i]
-
+        full_names = df_train[self.full_name_col].tolist()
+        first_names = df_train[self.first_name_col].tolist()
+        last_names = df_train[self.last_name_col].tolist()
+        
+        for full_name, first_name, last_name in tqdm(zip(full_names, first_names, last_names)):
             # The set to sample negative indices from
             df_sampled = df_sample[df_sample[self.full_name_col] != full_name]
             sample_set = set(df_sampled.index)
@@ -245,6 +208,7 @@ class TrainingDataGenerator:
                 sample_set -= set(df_sampled_same.index)
             else:
                 df_sampled_same = pd.DataFrame()
+
             # Sample the negative indices
             num_samples = self.n_neg * 5
             if len(sample_set) > num_samples:
@@ -255,11 +219,13 @@ class TrainingDataGenerator:
             # The sampled data frame
             if len(sampled_idx) > 0:
                 df_sampled = df_sample.loc[sampled_idx]
+
                 # Sort df_sampled by edit distance with the full name
                 sampled_edit_dist = [
                     editdistance.eval(full_name, name_y)
                     for name_y in df_sampled[self.full_name_col]
                 ]
+
                 df_sampled[self.edit_dist_col] = sampled_edit_dist
                 df_sampled.sort_values(
                     by=self.edit_dist_col,
@@ -267,21 +233,18 @@ class TrainingDataGenerator:
                     inplace=True,
                     ignore_index=True,
                 )
+
                 # Take the top (nearest negative examples)
                 df_sampled = df_sampled.head(self.n_neg)
+
                 # Adding those with same first/last names
                 if len(df_sampled_same) > 0:
                     df_sampled = pd.concat(
                         [df_sampled_same, df_sampled], ignore_index=True
                     )
                     df_sampled = df_sampled.head(self.n_neg)
-                list_sampled_neg = []
-                for j in range(len(df_sampled)):
-                    # Sample one of the aliases as negative example
-                    alias_choice = random.choice(pos_aliases)
-                    sampled_neg = df_sampled[alias_choice][j]
-                    list_sampled_neg.append(sampled_neg)
-                neg_mapping[full_name] = list_sampled_neg
+                
+                neg_mapping[full_name] = df_sampled[self.full_name_col].tolist()
 
         return neg_mapping
 
@@ -318,6 +281,9 @@ def main():
     
     person_type_val = config["DATA.VALUES"]["PERSON_TYPE"]
     orga_type_val = config["DATA.VALUES"]["ORGA_TYPE"]
+
+    filename_orga_alias = config["DATAPATH.RAW"]["ORGA_ALIAS_PROMPT"]
+    filename_pers_alias = config["DATAPATH.RAW"]["PERS_ALIAS_PROMPT"]
     filename_pos_pairs = config["DATAPATH.PROCESSED"]["FILENAME_POS_PAIRS"]
     filename_neg_pairs = config["DATAPATH.PROCESSED"]["FILENAME_NEG_PAIRS"]
 
@@ -326,11 +292,9 @@ def main():
 
     # Load the training data
     df_train = generator.load_training_data()
+    # df_train = df_train.sample(n=10).reset_index(drop=True)
     logger.info("TRAINING_DATA_DF", df="df_train", shape=df_train.shape)
 
-    # df_train = generator.normalize_name_strings()
-    # logger.info("NORMALIZED_NAMES_DATA_DF", df="df_train", shape=df_train.shape)
-    
     # Separate person and organization entities
     df_train_person = df_train[df_train[ent_type_col] == person_type_val]
     logger.info(
@@ -340,296 +304,154 @@ def main():
     df_train_orga = df_train[df_train[ent_type_col] == orga_type_val]
     logger.info("ORGA_TRAINING_DATA_DF", df="df_train_orga", shape=df_train_orga.shape)
 
-    # Process person entities
-    logger.info("GENERATING_POSITIVE_ALIASES_FOR_PERSON_ENTITIES")
-    # Read the system prompt
-    prompt_file = "data/pers_alias_prompt.txt"
-    sys_prompt = None
-    with open(prompt_file, 'r', encoding='utf-8') as file:
-        sys_prompt = file.read()
-
-    if not sys_prompt:
-        logger.error("UNEXPECTED_PIPELINE_TERMINATION")
-        raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
+    # logger.info("GENERATING_POSITIVE_ALIASES_FOR_PERSON_ENTITIES")
+    # # Read the system prompt
+    # sys_prompt = None
+    # with open(filename_pers_alias, 'r', encoding='utf-8') as file:
+    #     sys_prompt = file.read()
     
-    # Initialize the client
-    client = OpenAI(api_key=OPENAI_API_TOKEN)
-    rand_idx = random.choice(range(len(df_train_person)))
-    person_name = df_train_person[full_name_col].iloc[rand_idx]
-    first_name = df_train_person[first_name_col].iloc[rand_idx]
-    last_name = df_train_person[last_name_col].iloc[rand_idx]
-    print(f"Person name: {person_name}, first name: {first_name}, last name: {last_name}")
-    aliases = generate_aliases(client, sys_prompt, full_name=person_name, first_name=first_name, last_name=last_name)
-    print(f"Generated aliases: {aliases}")
-    print("="*80)
+    # # Initialize the client
+    # client = OpenAI(api_key=OPENAI_API_TOKEN)
     
-    person_typos = [
-        generate_typo_name(name, prob_flip=0.4)
-        for name in df_train_person[full_name_col]
-    ]
+    # # Iterate through all the names and generate aliases
+    # person_aliases = []
+    # for orga_name, first_name, last_name in tqdm(zip(df_train_person[full_name_col], df_train_person[first_name_col], df_train_person[last_name_col])):
+    #     alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, first_name=first_name, last_name=last_name)
+    #     aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
+    #     person_aliases.append(aliases)        
+
+    # # Generate typo aliases
+    # person_typos = [
+    #     generate_typo_name(name, prob_flip=0.4)
+    #     for name in df_train_person[full_name_col]
+    # ]
     
-    logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGANIZATION_ENTITIES")
-    rand_idx = random.choice(range(len(df_train_orga)))
-    orga_name = df_train_orga[full_name_col].iloc[rand_idx]
-    print(f"Organization name: {orga_name}")
+    # # Add typo names to the list of aliases
+    # for i in tqdm(range(len(person_aliases))):
+    #     if person_typos[i] not in person_aliases[i]:
+    #         person_aliases[i].append(person_typos[i])
     
-    # Read the system prompt
-    prompt_file = "data/orga_alias_prompt.txt"
-    sys_prompt = None
-    with open(prompt_file, 'r', encoding='utf-8') as file:
-        sys_prompt = file.read()
+    # logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGANIZATION_ENTITIES")
+    # # Read the system prompt
+    # sys_prompt = None
+    # with open(filename_orga_alias, 'r', encoding='utf-8') as file:
+    #     sys_prompt = file.read()
+    
+    # # Iterate through all the names and generate aliases
+    # orga_aliases = []
+    # for orga_name in tqdm(df_train_orga[full_name_col].tolist()):
+    #     alias_str = generate_aliases(client, sys_prompt, full_name=orga_name)
+    #     aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
+    #     orga_aliases.append(aliases)
 
-    if not sys_prompt:
-        logger.error("UNEXPECTED_PIPELINE_TERMINATION")
-        raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
-    aliases = generate_aliases(client, sys_prompt, full_name=orga_name)
-    print(f"Generated aliases: {aliases}")
+    # # Generate typo aliases
+    # orga_typos = [
+    #     generate_typo_name(name, prob_flip=0.35)
+    #     for name in df_train_orga[full_name_col]
+    # ]
+    
+    # # Add typo names to the list of aliases
+    # for i in tqdm(range(len(orga_aliases))):
+    #     if orga_typos[i] not in orga_aliases[i]:
+    #         print(orga_typos[i])
+    #         orga_aliases[i].append(orga_typos[i])
 
-    orga_typos = [
-        generate_typo_name(name, prob_flip=0.35)
-        for name in df_train_orga[full_name_col]
-    ]
-    # print(orga_typos[:10])
-    assert False
+    # # Generate positive mappings
+    # logger.info("GENERATING_POSITIVE_MAPPINGS")
+    # person_pos_mappings = generator.generate_pos_mappings(
+    #     df_train_person[full_name_col].tolist(), person_aliases
+    # )
+    # orga_pos_mappings = generator.generate_pos_mappings(
+    #     df_train_orga[full_name_col].tolist(), orga_aliases
+    # )
 
-    # Reset all the indices
-    df_person_single.reset_index(drop=True, inplace=True)
-    df_single_hyphens.reset_index(drop=True, inplace=True)
-    df_train_orga.reset_index(drop=True, inplace=True)
-    df_orga_hyphens.reset_index(drop=True, inplace=True)
-    logger.info("GENERATING_POSITIVE_MAPPINGS")
-    single_person_pos_mappings = generator.generate_pos_mappings(
-        df_person_single, is_person=True
-    )
-    hyphened_person_pos_mappings = generator.generate_pos_mappings(
-        df_single_hyphens, is_person=True
-    )
-    # Separate joint accounts into those that are well-tokenized (negative examples) and not (positive examples)
-    len_joints = [
-        [len(token) for token in joints] for joints in df_person_joint[joint_col]
-    ]
-    df_person_joint[len_joint_col] = len_joints
-    has_empty_joints = [0 in len_list for len_list in len_joints]
-    df_person_joint[has_empty_joint_col] = has_empty_joints
-    # Positive examples -- not well-tokenized (there is an empty token)
-    df_person_joint_pos = df_person_joint[df_person_joint[has_empty_joint_col]]
-    # Negative examples -- well-tokenized (AH names are well-separated)
-    df_person_joint_neg = df_person_joint[~df_person_joint[has_empty_joint_col]]
-    logger.info(
-        "JOINT_PERSONS_POSITIVE_EXAMPLES_DF",
-        df="df_person_joint_pos",
-        shape=df_person_joint_pos.shape,
-    )
-    logger.info(
-        "JOINT_PERSONS_NEGATIVE_EXAMPLES_DF",
-        df="df_person_joint_neg",
-        shape=df_person_joint_neg.shape,
-    )
+    # # Generate positive pairs data frames
+    # # For persons
+    # df_pos_person = generator.generate_df_pairs(person_pos_mappings)
+    # logger.info("PERSON_POSITIVE_PAIRS_DF", df="df_pos_person", shape=df_pos_person.shape)
 
-    # Positive examples (of joint accounts)
-    if len(df_person_joint_pos) > 0:
-        joint_person_pos_mappings = dict(
-            zip(df_person_joint_pos[full_name_col], df_person_joint_pos[joint_col])
-        )
-    else:
-        joint_person_pos_mappings = dict()
-
-    # Negative examples (of joint accounts)
-    if len(df_person_joint_neg) > 0:
-        joint_person_neg_mappings = dict(
-            zip(df_person_joint_neg[full_name_col], df_person_joint_neg[joint_col])
-        )
-    else:
-        joint_person_neg_mappings = dict()
-
-    orga_pos_mappings = generator.generate_pos_mappings(df_train_orga, is_person=False)
-    hyphened_orga_pos_mappings = generator.generate_pos_mappings(
-        df_orga_hyphens, is_person=False
-    )
-    # For person (positive pairs generation)
-    df_pos_person_single = generator.generate_df_pairs(single_person_pos_mappings)
-    df_pos_person_single[has_joint_x_col] = False
-    df_pos_person_single[has_joint_y_col] = False
-    df_pos_person_single[orga_type_x_col] = False
-    df_pos_person_single[orga_type_y_col] = False
-    logger.info(
-        "SINGLE_PERSONS_POSITIVE_PAIRS_DF",
-        df="df_pos_person_single",
-        shape=df_pos_person_single.shape,
-    )
-    df_pos_person_hyphened = generator.generate_df_pairs(hyphened_person_pos_mappings)
-    df_pos_person_hyphened[has_joint_x_col] = False
-    df_pos_person_hyphened[has_joint_y_col] = False
-    df_pos_person_hyphened[orga_type_x_col] = False
-    df_pos_person_hyphened[orga_type_y_col] = False
-    logger.info(
-        "HYPHENED_PERSONS_POSITIVE_PAIRS_DF",
-        df="df_pos_person_hyphened",
-        shape=df_pos_person_hyphened.shape,
-    )
-
-    if len(joint_person_pos_mappings) > 0:
-        df_pos_person_joint = generator.generate_df_pairs(joint_person_pos_mappings)
-        df_pos_person_joint[has_joint_x_col] = True
-        df_pos_person_joint[has_joint_y_col] = True
-        df_pos_person_joint[orga_type_x_col] = False
-        df_pos_person_joint[orga_type_y_col] = False
-        logger.info(
-            "JOINT_PERSONS_POSITIVE_PAIRS_DF",
-            df="df_pos_person_joint",
-            shape=df_pos_person_joint.shape,
-        )
-    else:
-        df_pos_person_joint = pd.DataFrame()
-
-    # For organization (positive pairs generation)
-    df_pos_orga = generator.generate_df_pairs(orga_pos_mappings)
-    df_pos_orga[has_joint_x_col] = False
-    df_pos_orga[has_joint_y_col] = False
-    df_pos_orga[orga_type_x_col] = True
-    df_pos_orga[orga_type_y_col] = True
-    logger.info("ORGA_POSITIVE_PAIRS_DF", df="df_pos_orga", shape=df_pos_orga.shape)
-    df_pos_orga_hyphened = generator.generate_df_pairs(hyphened_orga_pos_mappings)
-    df_pos_orga_hyphened[has_joint_x_col] = False
-    df_pos_orga_hyphened[has_joint_y_col] = False
-    df_pos_orga_hyphened[orga_type_x_col] = True
-    df_pos_orga_hyphened[orga_type_y_col] = True
-    logger.info(
-        "HYPHENED_ORGA_POSITIVE_PAIRS_DF",
-        df="df_pos_orga_hyphened",
-        shape=df_pos_orga_hyphened.shape,
-    )
-    # Combine both (persons and organizations)
-    df_pos_person = pd.concat(
-        [df_pos_person_joint, df_pos_person_single, df_pos_person_hyphened],
-        ignore_index=True,
-    )
-    df_pos_orga = pd.concat([df_pos_orga, df_pos_orga_hyphened], ignore_index=True)
-    df_pairs_pos = pd.concat([df_pos_person, df_pos_orga], ignore_index=True)
-    logger.info("POSITIVE_PAIRS_DF", df="df_pairs_pos", shape=df_pairs_pos.shape)
-    df_pairs_pos.to_csv(filename_pos_pairs, index=False)
-    logger.info("SAVE_POSITIVE_PAIRS", file=filename_pos_pairs)
+    # # For organizations
+    # df_pos_orga = generator.generate_df_pairs(orga_pos_mappings)
+    # logger.info("ORGA_POSITIVE_PAIRS_DF", df="df_pos_orga", shape=df_pos_orga.shape)
+    
+    # # Combine both (persons and organizations)
+    # df_pairs_pos = pd.concat([df_pos_person, df_pos_orga], ignore_index=True)
+    # logger.info("POSITIVE_PAIRS_DF", df="df_pairs_pos", shape=df_pairs_pos.shape)
+    # df_pairs_pos.to_csv(filename_pos_pairs, index=False)
+    # logger.info("SAVED_POSITIVE_PAIRS", file=filename_pos_pairs)
+    
     logger.info("GENERATING_NEGATIVE_MAPPINGS")
     # For person (mapping generation)
     person_person_neg_mappings = generator.generate_neg_mappings(
-        df_person_single, df_person_single
+        df_train_person, df_train_person
     )
     person_orga_neg_mappings = generator.generate_neg_mappings(
-        df_person_single,
+        df_train_person,
         df_train_orga,
-        is_person=False,
     )
-    person_hyphen_mappings = generator.generate_neg_mappings(
-        df_single_hyphens, df_single_hyphens
-    )
+    
     # For organization (mapping generation)
     orga_person_neg_mappings = generator.generate_neg_mappings(
-        df_train_orga, df_person_single
+        df_train_orga, df_train_person
     )
     orga_orga_neg_mappings = generator.generate_neg_mappings(
-        df_train_orga, df_train_orga, is_person=False
+        df_train_orga, df_train_orga
     )
-    orga_hyphen_neg_mappings = generator.generate_neg_mappings(
-        df_orga_hyphens, df_orga_hyphens, is_person=False
-    )
-    # For person (negative pairs generation)
-    if len(joint_person_neg_mappings) > 0:
-        df_neg_person_joint = generator.generate_df_pairs(joint_person_neg_mappings)
-        df_neg_person_joint[has_joint_x_col] = True
-        df_neg_person_joint[has_joint_y_col] = False
-        df_neg_person_joint[orga_type_x_col] = False
-        df_neg_person_joint[orga_type_y_col] = False
-        logger.info(
-            "JOINT_PERSONS_NEGATIVE_PAIRS_DF",
-            df="df_neg_person_joint",
-            shape=df_neg_person_joint.shape,
-        )
-    else:
-        df_neg_person_joint = pd.DataFrame()
-
+    
+    # Generate negative pairs data frames (Person)
     df_neg_person_person = generator.generate_df_pairs(person_person_neg_mappings)
-    df_neg_person_person[has_joint_x_col] = False
-    df_neg_person_person[has_joint_y_col] = False
-    df_neg_person_person[orga_type_x_col] = False
-    df_neg_person_person[orga_type_y_col] = False
     logger.info(
-        "PERSON_PERSONS_NEGATIVE_PAIRS_DF",
+        "PERSON_PERSON_NEGATIVE_PAIRS_DF",
         df="df_neg_person_person",
         shape=df_neg_person_person.shape,
     )
+
     df_neg_person_orga = generator.generate_df_pairs(person_orga_neg_mappings)
-    df_neg_person_orga[has_joint_x_col] = False
-    df_neg_person_orga[has_joint_y_col] = False
-    df_neg_person_orga[orga_type_x_col] = False
-    df_neg_person_orga[orga_type_y_col] = True
     logger.info(
-        "ORGA_PERSONS_NEGATIVE_PAIRS_DF",
+        "ORGA_PERSON_NEGATIVE_PAIRS_DF",
         df="df_neg_person_orga",
         shape=df_neg_person_orga.shape,
     )
-    df_neg_person_hyphen = generator.generate_df_pairs(person_hyphen_mappings)
-    df_neg_person_hyphen[has_joint_x_col] = False
-    df_neg_person_hyphen[has_joint_y_col] = False
-    df_neg_person_hyphen[orga_type_x_col] = False
-    df_neg_person_hyphen[orga_type_y_col] = False
-    logger.info(
-        "HYPHENED_PERSONS_NEGATIVE_PAIRS_DF",
-        df="df_neg_person_hyphen",
-        shape=df_neg_person_hyphen.shape,
-    )
+
     df_neg_person = pd.concat(
         [
-            df_neg_person_joint,
             df_neg_person_person,
             df_neg_person_orga,
-            df_neg_person_hyphen,
         ],
         ignore_index=True,
     )
     logger.info(
-        "PERSONS_NEGATIVE_PAIRS_DF", df="df_neg_person", shape=df_neg_person.shape
+        "PERSON_NEGATIVE_PAIRS_DF", df="df_neg_person", shape=df_neg_person.shape
     )
-    # For organization (negative pairs generation)
+
+    # # Generate negative pairs data frames (Organization)
     df_neg_orga_person = generator.generate_df_pairs(orga_person_neg_mappings)
-    df_neg_orga_person[has_joint_x_col] = False
-    df_neg_orga_person[has_joint_y_col] = False
-    df_neg_orga_person[orga_type_x_col] = True
-    df_neg_orga_person[orga_type_y_col] = False
     logger.info(
         "ORGA_PERSON_NEGATIVE_PAIRS_DF",
         df="df_neg_orga_person",
         shape=df_neg_orga_person.shape,
     )
+
     df_neg_orga_orga = generator.generate_df_pairs(orga_orga_neg_mappings)
-    df_neg_orga_orga[has_joint_x_col] = False
-    df_neg_orga_orga[has_joint_y_col] = False
-    df_neg_orga_orga[orga_type_x_col] = True
-    df_neg_orga_orga[orga_type_y_col] = True
     logger.info(
         "ORGA_ORGA_NEGATIVE_PAIRS_DF",
         df="df_neg_orga_orga",
         shape=df_neg_orga_orga.shape,
     )
-    df_neg_orga_hyphen = generator.generate_df_pairs(orga_hyphen_neg_mappings)
-    df_neg_orga_hyphen[has_joint_x_col] = False
-    df_neg_orga_hyphen[has_joint_y_col] = False
-    df_neg_orga_hyphen[orga_type_x_col] = True
-    df_neg_orga_hyphen[orga_type_y_col] = True
-    logger.info(
-        "HYPHENED_ORGA_NEGATIVE_PAIRS_DF",
-        df="df_neg_orga_hyphen",
-        shape=df_neg_orga_hyphen.shape,
-    )
+
     df_neg_orga = pd.concat(
-        [df_neg_orga_person, df_neg_orga_orga, df_neg_orga_hyphen], ignore_index=True
+        [df_neg_orga_person, df_neg_orga_orga], ignore_index=True
     )
     logger.info("ORGA_NEGATIVE_PAIRS_DF", df="df_neg_orga", shape=df_neg_orga.shape)
+
     df_pairs_neg = pd.concat([df_neg_person, df_neg_orga], ignore_index=True)
     logger.info("NEGATIVE_PAIRS_DF", df="df_pairs_neg", shape=df_pairs_neg.shape)
 
     # Save to disk
     df_pairs_neg.to_csv(filename_neg_pairs, index=False)
-    logger.info("SAVE_NEGATIVE_PAIRS", file=filename_neg_pairs)
+    logger.info("SAVED_NEGATIVE_PAIRS", file=filename_neg_pairs)
+
+    # End clocking the time
     end_time = time.time()
     time_taken = float(end_time - start_time) / 60
     logger.info("TOTAL_RUNTIME", time_taken=round(time_taken, 4), unit="minutes")

@@ -158,7 +158,9 @@ def get_mistral_response(client=None, system_prompt="", user_prompt="",
 
 
 def generate_aliases(client, system_prompt, full_name, first_name="", last_name=""):
-    """Generate aliases for a given name with prompt caching enabled."""
+    """
+    Generate aliases for a given name with prompt caching enabled.
+    """
 
     assert client is not None, "OpenAI client cannot be None!"
     
