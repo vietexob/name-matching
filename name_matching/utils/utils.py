@@ -157,7 +157,7 @@ def get_mistral_response(client=None, system_prompt="", user_prompt="",
     return chat_response.choices[0].message.content
 
 
-def generate_aliases(client, system_prompt, full_name, first_name="", last_name=""):
+def generate_aliases(client, system_prompt, full_name, first_name="", last_name="", model="gpt-4.1-mini"):
     """
     Generate aliases for a given name with prompt caching enabled.
     """
@@ -172,7 +172,7 @@ def generate_aliases(client, system_prompt, full_name, first_name="", last_name=
 
     # Make the API call with prompt caching
     response = client.chat.completions.parse(
-        model="gpt-4.1-mini",
+        model=model,
         messages=[
             {
                 "role": "system", 

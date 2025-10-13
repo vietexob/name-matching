@@ -10,7 +10,8 @@ import pandas as pd
 from tqdm import tqdm
 from pathlib import Path
 
-from openai import OpenAI
+# from openai import OpenAI
+from openai import AzureOpenAI
 from dotenv import load_dotenv
 
 from typing import Any, Dict, List
@@ -36,10 +37,10 @@ load_dotenv()
 
 OPENAI_API_TOKEN = os.environ["OPENAI_API_KEY"]
 
-# AZURE_OPENAI_API_VERSION = os.environ["AZURE_OPENAI_API_VERSION"]
-# AZURE_OPENAI_DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]
-# AZURE_OPENAI_API_KEY = os.environ["AZURE_OPENAI_API_KEY"]
-# AZURE_OPENAI_ENDPOINT = os.environ["AZURE_OPENAI_ENDPOINT"]
+AZURE_OPENAI_API_VERSION = os.environ["AZURE_OPENAI_API_VERSION"]
+AZURE_OPENAI_DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+AZURE_OPENAI_API_KEY = os.environ["AZURE_OPENAI_API_KEY"]
+AZURE_OPENAI_ENDPOINT = os.environ["AZURE_OPENAI_ENDPOINT"]
 
 
 class TrainingDataGenerator:
@@ -292,7 +293,7 @@ def main():
 
     # Load the training data
     df_train = generator.load_training_data()
-    # df_train = df_train.sample(n=10).reset_index(drop=True)
+    df_train = df_train.sample(n=10).reset_index(drop=True)
     logger.info("TRAINING_DATA_DF", df="df_train", shape=df_train.shape)
 
     # Separate person and organization entities
@@ -304,82 +305,89 @@ def main():
     df_train_orga = df_train[df_train[ent_type_col] == orga_type_val]
     logger.info("ORGA_TRAINING_DATA_DF", df="df_train_orga", shape=df_train_orga.shape)
 
-    # logger.info("GENERATING_POSITIVE_ALIASES_FOR_PERSON_ENTITIES")
-    # # Read the system prompt
-    # sys_prompt = None
-    # with open(filename_pers_alias, 'r', encoding='utf-8') as file:
-    #     sys_prompt = file.read()
+    logger.info("GENERATING_POSITIVE_ALIASES_FOR_PERSON_ENTITIES")
+    # Read the system prompt
+    sys_prompt = None
+    with open(filename_pers_alias, 'r', encoding='utf-8') as file:
+        sys_prompt = file.read()
     
-    # # Initialize the client
+    # Initialize the client
     # client = OpenAI(api_key=OPENAI_API_TOKEN)
-    
-    # # Iterate through all the names and generate aliases
-    # person_aliases = []
-    # for orga_name, first_name, last_name in tqdm(zip(df_train_person[full_name_col], df_train_person[first_name_col], df_train_person[last_name_col])):
-    #     alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, first_name=first_name, last_name=last_name)
-    #     aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
-    #     person_aliases.append(aliases)        
+    client = AzureOpenAI(
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        api_version=AZURE_OPENAI_API_VERSION,
+    )
 
-    # # Generate typo aliases
-    # person_typos = [
-    #     generate_typo_name(name, prob_flip=0.4)
-    #     for name in df_train_person[full_name_col]
-    # ]
-    
-    # # Add typo names to the list of aliases
-    # for i in tqdm(range(len(person_aliases))):
-    #     if person_typos[i] not in person_aliases[i]:
-    #         person_aliases[i].append(person_typos[i])
-    
-    # logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGANIZATION_ENTITIES")
-    # # Read the system prompt
-    # sys_prompt = None
-    # with open(filename_orga_alias, 'r', encoding='utf-8') as file:
-    #     sys_prompt = file.read()
-    
-    # # Iterate through all the names and generate aliases
-    # orga_aliases = []
-    # for orga_name in tqdm(df_train_orga[full_name_col].tolist()):
-    #     alias_str = generate_aliases(client, sys_prompt, full_name=orga_name)
-    #     aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
-    #     orga_aliases.append(aliases)
+    # Iterate through all the names and generate aliases
+    person_aliases = []
+    for orga_name, first_name, last_name in tqdm(zip(df_train_person[full_name_col], df_train_person[first_name_col], df_train_person[last_name_col])):
+        alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, first_name=first_name, last_name=last_name, model=AZURE_OPENAI_DEPLOYMENT)
+        aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
+        person_aliases.append(aliases)        
 
-    # # Generate typo aliases
-    # orga_typos = [
-    #     generate_typo_name(name, prob_flip=0.35)
-    #     for name in df_train_orga[full_name_col]
-    # ]
+    # Generate typo aliases
+    person_typos = [
+        generate_typo_name(name, prob_flip=0.4)
+        for name in df_train_person[full_name_col]
+    ]
     
-    # # Add typo names to the list of aliases
-    # for i in tqdm(range(len(orga_aliases))):
-    #     if orga_typos[i] not in orga_aliases[i]:
-    #         print(orga_typos[i])
-    #         orga_aliases[i].append(orga_typos[i])
-
-    # # Generate positive mappings
-    # logger.info("GENERATING_POSITIVE_MAPPINGS")
-    # person_pos_mappings = generator.generate_pos_mappings(
-    #     df_train_person[full_name_col].tolist(), person_aliases
-    # )
-    # orga_pos_mappings = generator.generate_pos_mappings(
-    #     df_train_orga[full_name_col].tolist(), orga_aliases
-    # )
-
-    # # Generate positive pairs data frames
-    # # For persons
-    # df_pos_person = generator.generate_df_pairs(person_pos_mappings)
-    # logger.info("PERSON_POSITIVE_PAIRS_DF", df="df_pos_person", shape=df_pos_person.shape)
-
-    # # For organizations
-    # df_pos_orga = generator.generate_df_pairs(orga_pos_mappings)
-    # logger.info("ORGA_POSITIVE_PAIRS_DF", df="df_pos_orga", shape=df_pos_orga.shape)
+    # Add typo names to the list of aliases
+    for i in tqdm(range(len(person_aliases))):
+        if person_typos[i] not in person_aliases[i]:
+            person_aliases[i].append(person_typos[i])
     
-    # # Combine both (persons and organizations)
-    # df_pairs_pos = pd.concat([df_pos_person, df_pos_orga], ignore_index=True)
-    # logger.info("POSITIVE_PAIRS_DF", df="df_pairs_pos", shape=df_pairs_pos.shape)
-    # df_pairs_pos.to_csv(filename_pos_pairs, index=False)
-    # logger.info("SAVED_POSITIVE_PAIRS", file=filename_pos_pairs)
+    logger.info("GENERATING_POSITIVE_ALIASES_FOR_ORGANIZATION_ENTITIES")
+    # Read the system prompt
+    sys_prompt = None
+    with open(filename_orga_alias, 'r', encoding='utf-8') as file:
+        sys_prompt = file.read()
     
+    # Iterate through all the names and generate aliases
+    orga_aliases = []
+    for orga_name in tqdm(df_train_orga[full_name_col].tolist()):
+        alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, model=AZURE_OPENAI_DEPLOYMENT)
+        aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
+        orga_aliases.append(aliases)
+
+    # Generate typo aliases
+    orga_typos = [
+        generate_typo_name(name, prob_flip=0.35)
+        for name in df_train_orga[full_name_col]
+    ]
+    
+    # Add typo names to the list of aliases
+    for i in tqdm(range(len(orga_aliases))):
+        if orga_typos[i] not in orga_aliases[i]:
+            print(orga_typos[i])
+            orga_aliases[i].append(orga_typos[i])
+
+    # Generate positive mappings
+    logger.info("GENERATING_POSITIVE_MAPPINGS")
+    person_pos_mappings = generator.generate_pos_mappings(
+        df_train_person[full_name_col].tolist(), person_aliases
+    )
+    orga_pos_mappings = generator.generate_pos_mappings(
+        df_train_orga[full_name_col].tolist(), orga_aliases
+    )
+
+    # Generate positive pairs data frames
+    # For persons
+    df_pos_person = generator.generate_df_pairs(person_pos_mappings)
+    logger.info("PERSON_POSITIVE_PAIRS_DF", df="df_pos_person", shape=df_pos_person.shape)
+
+    # For organizations
+    df_pos_orga = generator.generate_df_pairs(orga_pos_mappings)
+    logger.info("ORGA_POSITIVE_PAIRS_DF", df="df_pos_orga", shape=df_pos_orga.shape)
+    
+    # Combine both (persons and organizations)
+    df_pairs_pos = pd.concat([df_pos_person, df_pos_orga], ignore_index=True)
+    logger.info("POSITIVE_PAIRS_DF", df="df_pairs_pos", shape=df_pairs_pos.shape)
+    df_pairs_pos.to_csv(filename_pos_pairs, index=False)
+    logger.info("SAVED_POSITIVE_PAIRS", file=filename_pos_pairs)
+    
+    assert False, "STOP"
+
     logger.info("GENERATING_NEGATIVE_MAPPINGS")
     # For person (mapping generation)
     person_person_neg_mappings = generator.generate_neg_mappings(
