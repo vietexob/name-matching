@@ -293,7 +293,6 @@ def main():
 
     # Load the training data
     df_train = generator.load_training_data()
-    df_train = df_train.sample(n=10).reset_index(drop=True)
     logger.info("TRAINING_DATA_DF", df="df_train", shape=df_train.shape)
 
     # Separate person and organization entities
@@ -386,8 +385,6 @@ def main():
     df_pairs_pos.to_csv(filename_pos_pairs, index=False)
     logger.info("SAVED_POSITIVE_PAIRS", file=filename_pos_pairs)
     
-    assert False, "STOP"
-
     logger.info("GENERATING_NEGATIVE_MAPPINGS")
     # For person (mapping generation)
     person_person_neg_mappings = generator.generate_neg_mappings(
