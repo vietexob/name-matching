@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from typing import Any, Dict, List
 from configparser import ConfigParser
+from openai import ContentFilterFinishReasonError
 
 from name_matching.config import read_config
 from name_matching.log.logging import configure_structlog, configure_tqdm
@@ -320,8 +321,13 @@ def main():
 
     # Iterate through all the names and generate aliases
     person_aliases = []
-    for orga_name, first_name, last_name in tqdm(zip(df_train_person[full_name_col], df_train_person[first_name_col], df_train_person[last_name_col])):
-        alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, first_name=first_name, last_name=last_name, model=AZURE_OPENAI_DEPLOYMENT)
+    for full_name, first_name, last_name in tqdm(zip(df_train_person[full_name_col], df_train_person[first_name_col], df_train_person[last_name_col])):
+        try:
+            alias_str = generate_aliases(client, sys_prompt, full_name=full_name, first_name=first_name, last_name=last_name, model=AZURE_OPENAI_DEPLOYMENT)
+        except ContentFilterFinishReasonError as e:
+            logger.warning(f"Content filter triggered for name: {full_name}")
+            alias_str = full_name
+
         aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
         person_aliases.append(aliases)        
 
@@ -345,7 +351,12 @@ def main():
     # Iterate through all the names and generate aliases
     orga_aliases = []
     for orga_name in tqdm(df_train_orga[full_name_col].tolist()):
-        alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, model=AZURE_OPENAI_DEPLOYMENT)
+        try:
+            alias_str = generate_aliases(client, sys_prompt, full_name=orga_name, model=AZURE_OPENAI_DEPLOYMENT)
+        except ContentFilterFinishReasonError as e:
+            logger.warning(f"Content filter triggered for name: {orga_name}")
+            alias_str = orga_name
+        
         aliases = [alias.strip() for alias in alias_str.split(';') if alias.strip()]
         orga_aliases.append(aliases)
 
@@ -358,7 +369,6 @@ def main():
     # Add typo names to the list of aliases
     for i in tqdm(range(len(orga_aliases))):
         if orga_typos[i] not in orga_aliases[i]:
-            print(orga_typos[i])
             orga_aliases[i].append(orga_typos[i])
 
     # Generate positive mappings
