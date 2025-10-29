@@ -175,7 +175,7 @@ class FeatureGenerator:
                 for x, y in zip(names_x, names_y)
             ]
 
-            # Ratio feature (Xeno)
+            # Ratio feature
             self.logger.info("GENERATING_EDIT_DISTANCE_FEATURES")
             edit_dist_xy = [
                 editdistance.eval(x.strip(), y.strip())
@@ -183,7 +183,7 @@ class FeatureGenerator:
             ]
             ratio_features = get_ratio_feature(names_x, names_y, edit_dist_xy)
 
-            # Sorted token ratio (Xeno)
+            # Sorted token ratio
             sorted_names_x = [" ".join(sorted(name.split())) for name in names_x]
             sorted_names_y = [" ".join(sorted(name.split())) for name in names_y]
             sorted_edit_dist_xy = [

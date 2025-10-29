@@ -1,5 +1,4 @@
 import time
-import uuid
 import pickle
 import warnings
 import structlog
@@ -64,8 +63,8 @@ class NameMatchingTrainer:
         self.label_col = config["DATA.COLUMNS"]["LABEL_COL"]
         self.figure_roc_auc = config["FIGUREPATH"]["FIGURE_ROC_AUC_TRAIN"]
         self.figure_precision_recall = config["FIGUREPATH"]["FIGURE_PRECISION_RECALL"]
-        self.figure_feature_importances = config["FIGUREPATH"][
-            "FIGURE_FEATURE_IMPORTANCES"
+        self.figure_feature_importance = config["FIGUREPATH"][
+            "FIGURE_FEATURE_IMPORTANCE"
         ]
         self.figure_feature_distribution = config["FIGUREPATH"][
             "FIGURE_FEATURE_DISTRIBUTION"
@@ -204,7 +203,7 @@ class NameMatchingTrainer:
         # plt.close()
         # self.logger.info("SAVE_PRECISION_RECALL_FIG", file=self.figure_precision_recall)
 
-        # Plot the feature importances
+        # Plot the feature importance
         feature_importance = pd.DataFrame(
             sorted(zip(model.feature_importances_, x_train.columns)),
             columns=["Value", "Feature"],
@@ -215,11 +214,10 @@ class NameMatchingTrainer:
             data=feature_importance.sort_values(by="Value", ascending=False),
         )
         plt.title("Model Feature Importances")
-        # plt.show()
-        plt.savefig(self.figure_feature_importances, bbox_inches="tight")
+        plt.savefig(self.figure_feature_importance, bbox_inches="tight")
         plt.close()
         self.logger.info(
-            "SAVE_FEATURE_IMPORTANCE", file=self.figure_feature_importances
+            "SAVE_FEATURE_IMPORTANCE", file=self.figure_feature_importance
         )
 
 
@@ -255,14 +253,11 @@ def main():
     filename_train_featured = config["MODELPATH"]["FILENAME_TRAIN_FEATURED"]
     filename_pos_pairs = config["DATAPATH.PROCESSED"]["FILENAME_POS_PAIRS"]
     filename_neg_pairs = config["DATAPATH.PROCESSED"]["FILENAME_NEG_PAIRS"]
-    config["DATAPATH.PROCESSED"]["FILENAME_RETRAIN"]
 
     # Load the env vars
     name_x_col = config["DATA.COLUMNS"]["NAME_X_COL"]
     name_y_col = config["DATA.COLUMNS"]["NAME_Y_COL"]
     label_col = config["DATA.COLUMNS"]["LABEL_COL"]
-    job_id_col = config["DATA.COLUMNS"]["UUID_COL"]
-    is_train_col = config["DATA.COLUMNS"]["IS_TRAIN_COL"]
     datetime_col = config["DATA.COLUMNS"]["DATETIME_COL"]
 
     # Feature columns
@@ -272,10 +267,6 @@ def main():
     sorted_token_ratio_col = config["DATA.COLUMNS"]["SORTED_TOKEN_RATIO_COL"]
     token_set_ratio_col = config["DATA.COLUMNS"]["TOKEN_SET_RATIO_COL"]
     partial_ratio_col = config["DATA.COLUMNS"]["PARTIAL_RATIO_COL"]
-    has_joint_x_col = config["DATA.COLUMNS"]["HAS_JOINT_X_COL"]
-    has_joint_y_col = config["DATA.COLUMNS"]["HAS_JOINT_Y_COL"]
-    orga_type_x_col = config["DATA.COLUMNS"]["ORGA_TYPE_X_COL"]
-    orga_type_y_col = config["DATA.COLUMNS"]["ORGA_TYPE_Y_COL"]
     emb_dist_col = config["DATA.COLUMNS"]["EMB_DISTANCE_COL"]
 
     # Load the training data
@@ -287,14 +278,16 @@ def main():
 
     # Filter the training data
     df_pos_pairs.dropna(subset=[name_x_col, name_y_col], inplace=True)
-    logger.info("NO_NA_POSITIVE_PAIRS", df="df_pos_pairs", shape=df_pos_pairs.shape)
+    logger.info("NON_NA_POSITIVE_PAIRS", df="df_pos_pairs", shape=df_pos_pairs.shape)
     df_pos_pairs.drop_duplicates(subset=[name_x_col, name_y_col], inplace=True)
     logger.info("DEDUPLICATED_POS_PAIRS", df="df_pos_pairs", shape=df_pos_pairs.shape)
 
     df_neg_pairs.dropna(subset=[name_x_col, name_y_col], inplace=True)
-    logger.info("NO_NA_NEGATIVE_PAIRS", df="df_neg_pairs", shape=df_neg_pairs.shape)
+    logger.info("NON_NA_NEGATIVE_PAIRS", df="df_neg_pairs", shape=df_neg_pairs.shape)
     df_neg_pairs.drop_duplicates(subset=[name_x_col, name_y_col], inplace=True)
     logger.info("DEDUPLICATED_NEG_PAIRS", df="df_neg_pairs", shape=df_neg_pairs.shape)
+
+    # TODO: Pre-process the names (lowercase, strip, remove special chars, etc.)
 
     # Create a feature generator object
     generator = FeatureGenerator(logger)
@@ -315,12 +308,6 @@ def main():
         logger.error("UNEXPECTED_PIPELINE_TERMINATION")
         raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
 
-    # Add additional features (positive)
-    df_featured_pos["HAS_JOINT_X"] = df_pos_pairs["HAS_JOINT_X"].tolist()
-    df_featured_pos["HAS_JOINT_Y"] = df_pos_pairs["HAS_JOINT_Y"].tolist()
-    df_featured_pos["IS_ORGA_TYPE_X"] = df_pos_pairs["IS_ORGA_TYPE_X"].tolist()
-    df_featured_pos["IS_ORGA_TYPE_Y"] = df_pos_pairs["IS_ORGA_TYPE_Y"].tolist()
-
     # Label the training data (positive)
     df_featured_pos[label_col] = 1
     logger.info(
@@ -335,12 +322,6 @@ def main():
         logger.error("UNEXPECTED_PIPELINE_TERMINATION")
         raise Exception("UNEXPECTED_PIPELINE_TERMINATION")
 
-    # Add additional features (negative)
-    df_featured_neg["HAS_JOINT_X"] = df_neg_pairs["HAS_JOINT_X"].tolist()
-    df_featured_neg["HAS_JOINT_Y"] = df_neg_pairs["HAS_JOINT_Y"].tolist()
-    df_featured_neg["IS_ORGA_TYPE_X"] = df_neg_pairs["IS_ORGA_TYPE_X"].tolist()
-    df_featured_neg["IS_ORGA_TYPE_Y"] = df_neg_pairs["IS_ORGA_TYPE_Y"].tolist()
-
     # Label the training data (negative)
     df_featured_neg[label_col] = 0
     logger.info(
@@ -351,13 +332,10 @@ def main():
     df_train = pd.concat([df_featured_pos, df_featured_neg], ignore_index=True)
     logger.info("FEATURE_DF", df="df_train", shape=df_train.shape)
 
-    # Insert JobID (random UUI4), Datetime, Training/Inference indicator
-    uuid_str = str(uuid.uuid4())
-    df_train[job_id_col] = uuid_str
+    # Insert timestamp of the training
     now = datetime.now()
     date_time = now.strftime("%Y-%m-%d %H:%M:%S")
     df_train[datetime_col] = date_time
-    df_train[is_train_col] = True
 
     # Store the featured data frame in DVC for model monitoring
     df_train.to_csv(filename_train_featured, index=False)
@@ -371,10 +349,6 @@ def main():
         sorted_token_ratio_col,
         token_set_ratio_col,
         partial_ratio_col,
-        has_joint_x_col,
-        has_joint_y_col,
-        orga_type_x_col,
-        orga_type_y_col,
         emb_dist_col
     ]
     logger.info("NUM_FINAL_FEATURES", count=len(features_final))

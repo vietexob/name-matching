@@ -2,10 +2,13 @@ import re
 import random
 import string
 
+import matplotlib.pyplot as plt
+
 from typing import List
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from pydantic import BaseModel, Field
+from sklearn.metrics import auc, roc_curve
 
 from name_matching.config import read_config
 
@@ -196,3 +199,35 @@ def generate_aliases(client, system_prompt, full_name, first_name="", last_name=
     
     # Return as comma-separated string
     return "; ".join(aliases_obj.aliases)
+
+
+def plot_roc_auc(
+    y_test: List[float], y_pred_prob: List[float], filename_out: str = ""
+) -> None:
+    """
+    Plots the ROC curve and computes its AUC.
+
+    :param y_test: List of truth values
+    :param y_pred_prob: List of predicted probabilities
+    :param filename_out: Output filename (figure)
+    """
+
+    assert len(y_test) == len(y_pred_prob), "Input lists are not of the same length!"
+
+    fpr, tpr, _ = roc_curve(y_test, y_pred_prob)
+    roc_auc = auc(fpr, tpr) * 100
+
+    plt.title("Receiver Operating Characteristic")
+    plt.plot(fpr, tpr, "b", label=f"AUC = {roc_auc:.2f}%")
+    plt.legend(loc="lower right")
+    plt.plot([0, 1], [0, 1], "r--")
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.ylabel("True Positive Rate")
+    plt.xlabel("False Positive Rate")
+    # plt.show()
+
+    if len(filename_out) > 0:
+        # Save figure to disk
+        plt.savefig(filename_out, bbox_inches="tight")
+    plt.close()
