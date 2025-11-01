@@ -12,15 +12,14 @@ from typing import Any, List
 from lightgbm import LGBMClassifier
 from matplotlib import pyplot as plt
 from matplotlib import style
-from sklearn.metrics import accuracy_score  # plot_precision_recall_curve,
-from sklearn.metrics import auc, classification_report, precision_recall_curve
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
 from name_matching.config import read_config
 from name_matching.log.logging import configure_structlog
 from name_matching.features.build_features import FeatureGenerator
 from name_matching.utils.cli import basic_argparser
-from name_matching.utils.utils import plot_roc_auc
+from name_matching.utils.utils import plot_roc_auc, plot_precision_recall_auc
 
 config = read_config()
 style.use("fivethirtyeight")
@@ -130,8 +129,8 @@ class NameMatchingTrainer:
 
         # Plot the ROC, PR curves
         self.plot_model(
-            model, x_train, x_test, y_test, y_pred_prob
-        )  # TODO: disable during train run
+            model, x_train, y_test, y_pred_prob
+        )
 
         return model
 
@@ -172,7 +171,6 @@ class NameMatchingTrainer:
         self,
         model: LGBMClassifier,
         x_train: pd.DataFrame,
-        x_test: pd.DataFrame,
         y_test: pd.DataFrame,
         y_pred_prob: List[float],
     ) -> None:
@@ -181,7 +179,6 @@ class NameMatchingTrainer:
 
         :param model: The trained model
         :param x_train: Training set (featured)
-        :param x_test: Test set (featured)
         :param y_test: Test set (labels)
         :param y_pred_prob: Predicted probabilities
         """
@@ -191,17 +188,9 @@ class NameMatchingTrainer:
         self.logger.info("SAVE_ROC_AUC_FIG", file=self.figure_roc_auc)
 
         # Plot the PR curve
-        precision, recall, _ = precision_recall_curve(y_test, y_pred_prob)
-        auc(recall, precision)
-
-        # fig = plot_precision_recall_curve(model, x_test, y_test)
-        # fig.ax_.set_title(
-        #     f"Precision-Recall Curve: AUC = {auc_precision_recall * 100:.2f}%"
-        # )
-        # plt.show()
-        # plt.savefig(self.figure_precision_recall, bbox_inches="tight")
-        # plt.close()
-        # self.logger.info("SAVE_PRECISION_RECALL_FIG", file=self.figure_precision_recall)
+        pr_auc = plot_precision_recall_auc(y_test, y_pred_prob, filename_out=self.figure_precision_recall)
+        self.logger.info("PRECISION_RECALL_AUC", pr_auc=round(pr_auc, 2))
+        self.logger.info("SAVE_PRECISION_RECALL_FIG", file=self.figure_precision_recall)
 
         # Plot the feature importance
         feature_importance = pd.DataFrame(

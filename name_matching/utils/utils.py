@@ -8,7 +8,7 @@ from typing import List
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from pydantic import BaseModel, Field
-from sklearn.metrics import auc, roc_curve
+from sklearn.metrics import auc, precision_recall_curve, roc_curve
 
 from name_matching.config import read_config
 
@@ -231,3 +231,37 @@ def plot_roc_auc(
         # Save figure to disk
         plt.savefig(filename_out, bbox_inches="tight")
     plt.close()
+
+
+def plot_precision_recall_auc(
+    y_test: List[float], y_pred_prob: List[float], filename_out: str = ""
+) -> float:
+    """
+    Plots the Precision-Recall curve and computes its AUC.
+
+    :param y_test: List of truth values
+    :param y_pred_prob: List of predicted probabilities
+    :param filename_out: Output filename (figure)
+    :return: PR-AUC score
+    """
+
+    assert len(y_test) == len(y_pred_prob), "Input lists are not of the same length!"
+
+    precision, recall, _ = precision_recall_curve(y_test, y_pred_prob)
+    pr_auc = auc(recall, precision) * 100
+
+    plt.title("Precision-Recall Curve")
+    plt.plot(recall, precision, "b", label=f"AUC = {pr_auc:.2f}%")
+    plt.legend(loc="lower left")
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.ylabel("Precision")
+    plt.xlabel("Recall")
+    # plt.show()
+
+    if len(filename_out) > 0:
+        # Save figure to disk
+        plt.savefig(filename_out, bbox_inches="tight")
+    plt.close()
+
+    return pr_auc
