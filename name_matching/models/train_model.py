@@ -19,7 +19,7 @@ from name_matching.config import read_config
 from name_matching.log.logging import configure_structlog
 from name_matching.features.build_features import FeatureGenerator
 from name_matching.utils.cli import basic_argparser
-from name_matching.utils.utils import plot_roc_auc, plot_precision_recall_auc
+from name_matching.utils.utils import plot_roc_auc, plot_precision_recall_auc, process_text_standard
 
 config = read_config()
 style.use("fivethirtyeight")
@@ -164,7 +164,7 @@ class NameMatchingTrainer:
         plt.savefig(self.figure_feature_distribution, bbox_inches="tight")
         plt.close()
         self.logger.info(
-            "SAVE_PRECISION_RECALL_FIG", file=self.figure_feature_distribution
+            "SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_feature_distribution
         )
 
     def plot_model(
@@ -185,12 +185,12 @@ class NameMatchingTrainer:
 
         # Plot the ROC curve
         plot_roc_auc(y_test, y_pred_prob, filename_out=self.figure_roc_auc)
-        self.logger.info("SAVE_ROC_AUC_FIG", file=self.figure_roc_auc)
+        self.logger.info("SAVED_ROC_AUC_FIG_TO", file=self.figure_roc_auc)
 
         # Plot the PR curve
         pr_auc = plot_precision_recall_auc(y_test, y_pred_prob, filename_out=self.figure_precision_recall)
         self.logger.info("PRECISION_RECALL_AUC", pr_auc=round(pr_auc, 2))
-        self.logger.info("SAVE_PRECISION_RECALL_FIG", file=self.figure_precision_recall)
+        self.logger.info("SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_precision_recall)
 
         # Plot the feature importance
         feature_importance = pd.DataFrame(
@@ -206,7 +206,7 @@ class NameMatchingTrainer:
         plt.savefig(self.figure_feature_importance, bbox_inches="tight")
         plt.close()
         self.logger.info(
-            "SAVE_FEATURE_IMPORTANCE", file=self.figure_feature_importance
+            "SAVED_FEATURE_IMPORTANCE_TO", file=self.figure_feature_importance
         )
 
 
@@ -276,8 +276,19 @@ def main():
     df_neg_pairs.drop_duplicates(subset=[name_x_col, name_y_col], inplace=True)
     logger.info("DEDUPLICATED_NEG_PAIRS", df="df_neg_pairs", shape=df_neg_pairs.shape)
 
-    # TODO: Pre-process the names (lowercase, strip, remove special chars, etc.)
-
+    # Upper case all names
+    logger.info("PREPROCESSING_NAMES_IN_TRAINING_DATA")
+    df_pos_pairs[name_x_col] = df_pos_pairs[name_x_col].str.upper()
+    df_pos_pairs[name_y_col] = df_pos_pairs[name_y_col].str.upper()
+    df_neg_pairs[name_x_col] = df_neg_pairs[name_x_col].str.upper()
+    df_neg_pairs[name_y_col] = df_neg_pairs[name_y_col].str.upper()
+    
+    # Pre-process the names (lowercase, strip, remove special chars, etc.)
+    df_pos_pairs[name_x_col] = [process_text_standard(name, remove_stopwords=False) for name in df_pos_pairs[name_x_col]]
+    df_pos_pairs[name_y_col] = [process_text_standard(name, remove_stopwords=False) for name in df_pos_pairs[name_y_col]]
+    df_neg_pairs[name_x_col] = [process_text_standard(name, remove_stopwords=False) for name in df_neg_pairs[name_x_col]]
+    df_neg_pairs[name_y_col] = [process_text_standard(name, remove_stopwords=False) for name in df_neg_pairs[name_y_col]]
+    
     # Create a feature generator object
     generator = FeatureGenerator(logger)
 
@@ -328,7 +339,7 @@ def main():
 
     # Store the featured data frame in DVC for model monitoring
     df_train.to_csv(filename_train_featured, index=False)
-    logger.info("SAVE_FEATURE_TRAINING_DATA", file=filename_train_featured)
+    logger.info("SAVED_FEATURED_TRAINING_DATA_TO", file=filename_train_featured)
 
     # The final list of features used for training
     features_final = [
@@ -361,7 +372,7 @@ def main():
     filename_out = config["MODELPATH"]["MODEL_LGB_NAME_MATCHING"]
     with open(filename_out, "wb") as f:
         pickle.dump(model, f)
-    logger.info("SAVE_MODEL", model="lgb", file=filename_out)
+    logger.info("SAVED_MODEL_TO", model="lgb", file=filename_out)
 
     # Compute the time elapsed
     end_time = time.time()

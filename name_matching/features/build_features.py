@@ -254,7 +254,7 @@ class FeatureGenerator:
             filename_out = config["MODELPATH"]["FILENAME_MODEL_TFIDF_NGRAM"]
             with open(filename_out, "wb") as f:
                 pickle.dump(tfidf_vectorizer, f)
-            self.logger.info("SAVE_MODEL", model="TF-IDF", file=filename_out)
+            self.logger.info("SAVED_MODEL_TO", model="TF-IDF", file=filename_out)
 
             return tfidf_vectorizer
         except AssertionError as err:
