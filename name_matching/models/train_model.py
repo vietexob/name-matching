@@ -2,6 +2,7 @@ import time
 import pickle
 import warnings
 import structlog
+import math
 
 import pandas as pd
 import seaborn as sns
@@ -140,8 +141,9 @@ class NameMatchingTrainer:
         """
 
         fig = plt.figure(figsize=(16, 10))
+        ncols = math.ceil(len(self.features_final) / 2)
         axs = [
-            fig.add_subplot(2, int(len(self.features_final) * 0.5), i + 1)
+            fig.add_subplot(2, ncols, i + 1)
             for i in range(len(self.features_final))
         ]
 
@@ -164,7 +166,7 @@ class NameMatchingTrainer:
         plt.savefig(self.figure_feature_distribution, bbox_inches="tight")
         plt.close()
         self.logger.info(
-            "SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_feature_distribution
+            "SAVED_FEATURE_DISTRIBUTION_FIG_TO", file=self.figure_feature_distribution
         )
 
     def plot_model(
@@ -363,7 +365,7 @@ def main():
         args.human_readable,
     )
     # Plot the feature distributions
-    # trainer.plot_feature_distributions()
+    trainer.plot_feature_distributions()
 
     # Train the model
     model = trainer.train_model()
