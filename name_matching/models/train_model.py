@@ -1,10 +1,12 @@
+import os
 import math
-import pickle
 import time
+import pickle
 import warnings
 from datetime import datetime
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
+import optuna
 import pandas as pd
 import seaborn as sns
 import structlog
@@ -12,7 +14,7 @@ from lightgbm import LGBMClassifier
 from matplotlib import pyplot as plt
 from matplotlib import style
 from sklearn.metrics import accuracy_score, classification_report
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score, train_test_split
 
 from name_matching.config import read_config
 from name_matching.features.build_features import FeatureGenerator
@@ -23,6 +25,9 @@ from name_matching.utils.utils import (
     plot_roc_auc,
     process_text_standard,
 )
+
+# Disable tokenizer parallelism to avoid warnings when using multiprocessing
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 config = read_config()
 style.use("fivethirtyeight")
@@ -44,6 +49,8 @@ class NameMatchingTrainer:
         df_train: pd.DataFrame,
         features_final: List[str],
         human_readable: bool,
+        tune_hyperparameters: bool = False,
+        n_trials: int = 50,
     ) -> None:
         """
         Inits the class.
@@ -53,6 +60,9 @@ class NameMatchingTrainer:
         :param thresh: Threshold for prediction (of the positive class)
         :param df_train: The featurized training data
         :param features_final: List of final features
+        :param human_readable: Whether to print human-readable output
+        :param tune_hyperparameters: Whether to perform hyperparameter tuning
+        :param n_trials: Number of Optuna trials for hyperparameter tuning
         """
 
         self.logger = logger if logger is not None else structlog.get_logger()
@@ -61,6 +71,8 @@ class NameMatchingTrainer:
         self.df_train = df_train
         self.features_final = features_final
         self.human_readable = human_readable
+        self.tune_hyperparameters = tune_hyperparameters
+        self.n_trials = n_trials
 
         self.label_col = config["DATA.COLUMNS"]["LABEL_COL"]
         self.figure_roc_auc = config["FIGUREPATH"]["FIGURE_ROC_AUC_TRAIN"]
@@ -71,6 +83,69 @@ class NameMatchingTrainer:
         self.figure_feature_distribution = config["FIGUREPATH"][
             "FIGURE_FEATURE_DISTRIBUTION"
         ]
+
+    def optimize_hyperparameters(
+        self, x_train: pd.DataFrame, y_train: pd.Series
+    ) -> Dict[str, Any]:
+        """
+        Performs hyperparameter tuning using Optuna.
+
+        :param x_train: Training features
+        :param y_train: Training labels
+        :return: Best hyperparameters found
+        """
+
+        def objective(trial: optuna.Trial) -> float:
+            """
+            Optuna objective function for hyperparameter optimization.
+
+            :param trial: Optuna trial object
+            :return: Cross-validation score (to be maximized)
+            """
+
+            # Define hyperparameter search space
+            param = {
+                "num_leaves": trial.suggest_int("num_leaves", 5, 50),
+                "max_depth": trial.suggest_int("max_depth", 3, 12),
+                "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+                "n_estimators": trial.suggest_int("n_estimators", 100, 5000, step=100),
+                "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+                "subsample": trial.suggest_float("subsample", 0.5, 1.0),
+                "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+                "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
+                "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
+                "n_jobs": 4,
+                "is_unbalance": True,
+                "verbose": -1,
+            }
+
+            # Train model with cross-validation
+            model = LGBMClassifier(**param)
+            score = cross_val_score(
+                model, x_train, y_train, cv=5, scoring="average_precision", n_jobs=4
+            ).mean()
+
+            return score
+
+        # Suppress Optuna's INFO logs
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        # Create and optimize study
+        self.logger.info(
+            "STARTING_HYPERPARAMETER_TUNING",
+            n_trials=self.n_trials,
+            message="This may take several minutes...",
+        )
+        study = optuna.create_study(direction="maximize", study_name="lgbm_tuning")
+        study.optimize(objective, n_trials=self.n_trials, show_progress_bar=True)
+
+        self.logger.info(
+            "HYPERPARAMETER_TUNING_COMPLETE",
+            best_score=round(study.best_value, 4),
+            best_params=study.best_params,
+        )
+
+        return study.best_params
 
     def train_model(self) -> LGBMClassifier:
         """
@@ -93,15 +168,27 @@ class NameMatchingTrainer:
             y_test=y_test.shape,
         )
 
-        # Define a model and fit params
-        hyper_params = {
-            "num_leaves": 8,
-            "max_depth": 4,
-            "n_jobs": 4,
-            "n_estimators": 4000,
-            "learning_rate": 0.025,
-            "is_unbalance": True,
-        }
+        # Define hyperparameters: use tuned values if enabled, otherwise use defaults
+        if self.tune_hyperparameters:
+            best_params = self.optimize_hyperparameters(x_train, y_train)
+            # Add fixed parameters
+            hyper_params = {
+                **best_params,
+                "n_jobs": 4,
+                "is_unbalance": True,
+            }
+            self.logger.info("USING_TUNED_HYPERPARAMETERS", params=hyper_params)
+        else:
+            hyper_params = {
+                "num_leaves": 8,
+                "max_depth": 4,
+                "n_jobs": 4,
+                "n_estimators": 4000,
+                "learning_rate": 0.025,
+                "is_unbalance": True,
+            }
+            self.logger.info("USING_DEFAULT_HYPERPARAMETERS", params=hyper_params)
+
         model = LGBMClassifier(**hyper_params)
 
         fit_params = {
@@ -234,6 +321,20 @@ def main():
         default=0.85,
         required=False,
         type=float,
+    )
+    optional.add_argument(
+        "--tune",
+        help="Enable hyperparameter tuning with Optuna",
+        action="store_true",
+        default=False,
+        required=False,
+    )
+    optional.add_argument(
+        "--n-trials",
+        help="Number of Optuna trials for hyperparameter tuning",
+        default=25,
+        required=False,
+        type=int,
     )
     args = parser.parse_args()
     configure_structlog(args.silent)
@@ -382,6 +483,8 @@ def main():
         df_train,
         features_final,
         args.human_readable,
+        args.tune,
+        args.n_trials,
     )
     # Plot the feature distributions
     trainer.plot_feature_distributions()
