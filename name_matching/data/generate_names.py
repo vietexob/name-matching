@@ -1,13 +1,12 @@
 import time
 import warnings
-import structlog
-import ArabicNames
-
-import pandas as pd
-
-from typing import Any
-from faker import Faker
 from configparser import ConfigParser
+from typing import Any
+
+import ArabicNames
+import pandas as pd
+import structlog
+from faker import Faker
 
 from name_matching.config import read_config
 from name_matching.log.logging import configure_structlog, configure_tqdm
@@ -46,7 +45,9 @@ class SyntheticNamesGenerator:
         self.first_name_col = self.config["DATA.COLUMNS"]["FIRST_NAME_COL"]
         self.last_name_col = self.config["DATA.COLUMNS"]["LAST_NAME_COL"]
 
-    def gen_fake_person_names(self, faker: Faker, num: int, is_asian: bool=False) -> pd.DataFrame:
+    def gen_fake_person_names(
+        self, faker: Faker, num: int, is_asian: bool = False
+    ) -> pd.DataFrame:
         """
         Generate fake person names.
 
@@ -69,18 +70,24 @@ class SyntheticNamesGenerator:
             df_last_name = df_last_name.sample(n=num_arabic, ignore_index=True)
 
             # Add Arabic names to the list
-            first_names.extend(df_first_name['Name'].tolist())
-            last_names.extend(df_last_name['Name'].tolist())
+            first_names.extend(df_first_name["Name"].tolist())
+            last_names.extend(df_last_name["Name"].tolist())
         else:
             first_names = [faker.first_name() for _ in range(num)]
             last_names = [faker.last_name() for _ in range(num)]
 
-        full_names = [first + " " + last for first, last in zip(first_names, last_names)]
+        full_names = [
+            first + " " + last for first, last in zip(first_names, last_names)
+        ]
 
-        df_person_names = pd.DataFrame({self.full_name_col: full_names,
-                                        self.first_name_col: first_names,
-                                        self.last_name_col: last_names})
-                                        
+        df_person_names = pd.DataFrame(
+            {
+                self.full_name_col: full_names,
+                self.first_name_col: first_names,
+                self.last_name_col: last_names,
+            }
+        )
+
         return df_person_names
 
     def gen_fake_orga_names(self, faker: Faker, num: int) -> pd.DataFrame:
@@ -97,10 +104,14 @@ class SyntheticNamesGenerator:
         last_names = [name for name in orga_names]
         full_names = [name for name in orga_names]
 
-        df_orga_names = pd.DataFrame({self.full_name_col: full_names,
-                                      self.first_name_col: first_names,
-                                      self.last_name_col: last_names})
-        return df_orga_names        
+        df_orga_names = pd.DataFrame(
+            {
+                self.full_name_col: full_names,
+                self.first_name_col: first_names,
+                self.last_name_col: last_names,
+            }
+        )
+        return df_orga_names
 
 
 def main():
@@ -123,7 +134,7 @@ def main():
         required=False,
         type=int,
     )
-    
+
     args = parser.parse_args()
     configure_structlog(args.silent)
     configure_tqdm(args.disable_tqdm)
@@ -136,23 +147,39 @@ def main():
 
     # Define some column names
     ent_type_col = config["DATA.COLUMNS"]["ENT_TYPE_COL"]
-    
+
     # Create a synthetic names generator object
     generator = SyntheticNamesGenerator(logger=logger, config=config)
 
     # Generate synthetic Western names
     num_western = args.n_persons
-    western_langs = ['en_GB', 'en_US', 'fr_FR', 'fr_CH', 'de_DE', 'it_IT', 'es_ES', 'pt_PT', 'nl_NL']
+    western_langs = [
+        "en_GB",
+        "en_US",
+        "fr_FR",
+        "fr_CH",
+        "de_DE",
+        "it_IT",
+        "es_ES",
+        "pt_PT",
+        "nl_NL",
+    ]
     faker_western = Faker(western_langs)
-    df_person_western = generator.gen_fake_person_names(faker=faker_western, num=num_western)
-    logger.info("WESTERN_PERSON_DF", df="df_western_person", shape=df_person_western.shape)
+    df_person_western = generator.gen_fake_person_names(
+        faker=faker_western, num=num_western
+    )
+    logger.info(
+        "WESTERN_PERSON_DF", df="df_western_person", shape=df_person_western.shape
+    )
 
     # Generate synthetic Asian names
-    asian_langs = ['zh_CN', 'zh_TW', 'ja_JP']
+    asian_langs = ["zh_CN", "zh_TW", "ja_JP"]
     faker_asian = Faker(asian_langs)
     num_asian = (len(asian_langs) + 1) / len(western_langs) * num_western
-    num_asian = int(num_asian) # +1 above for Arabic names
-    df_person_asian = generator.gen_fake_person_names(faker=faker_asian, num=num_asian, is_asian=True)
+    num_asian = int(num_asian)  # +1 above for Arabic names
+    df_person_asian = generator.gen_fake_person_names(
+        faker=faker_asian, num=num_asian, is_asian=True
+    )
     logger.info("ASIAN_PERSON_DF", df="df_asian_person", shape=df_person_asian.shape)
 
     # Combine both Western and Asian names

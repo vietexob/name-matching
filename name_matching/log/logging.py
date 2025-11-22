@@ -1,11 +1,11 @@
 import logging
-import structlog
-
-from tqdm import tqdm
 from functools import partialmethod
 
+import structlog
+from tqdm import tqdm
 
-def configure_structlog(silent: bool=True) -> None:
+
+def configure_structlog(silent: bool = True) -> None:
     """
     Toggle Log Verbosity. Default is NOT Verbose.
 
@@ -17,7 +17,7 @@ def configure_structlog(silent: bool=True) -> None:
     structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(log_level))
 
 
-def configure_tqdm(disable_tqdm: bool=True) -> None:
+def configure_tqdm(disable_tqdm: bool = True) -> None:
     """
     Toggle tqdm progress bars. Default is disabled.
 

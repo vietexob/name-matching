@@ -1,17 +1,16 @@
 import pickle
-import structlog
-import editdistance
-
-import pandas as pd
-
 from typing import Any, List
+
+import editdistance
+import pandas as pd
+import structlog
 from fuzzywuzzy import fuzz  # for partial (token) ratio metric
+from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 # ML libraries
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics.pairwise import euclidean_distances
-from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+
 from name_matching.config import read_config
 
 # Instantiate configuration class
@@ -53,14 +52,14 @@ def compute_jaccard_sim(name_x: str, name_y: str) -> float:
 
     if len(name_x) == 0 or len(name_y) == 0:
         return 0
-    
+
     tokens_x = name_x.split()
     tokens_y = name_y.split()
     commons = set(tokens_x).intersection(set(tokens_y))
 
     if len(commons) > 0:
         return float(len(commons)) / (len(tokens_x) + len(tokens_y) - len(commons))
-    
+
     return 0
 
 
@@ -87,11 +86,12 @@ def compute_cosine_sims(
     return cosine_sims
 
 
-def compute_embedding_distances(names_x: List[str], names_y: List[str],
-                                cosine_dist: bool=True) -> List[float]:
+def compute_embedding_distances(
+    names_x: List[str], names_y: List[str], cosine_dist: bool = True
+) -> List[float]:
     """
     Computes the embedding distances between two sets of string vectors.
-    
+
     Args:
         names_x (List[str]): _description_
         names_y (List[str]): _description_
@@ -223,7 +223,7 @@ class FeatureGenerator:
                     self.sorted_token_ratio_col: sorted_token_ratios,
                     self.token_set_ratio_col: token_set_ratios,
                     self.partial_ratio_col: partial_ratios,
-                    self.emb_dist_col: emb_distances
+                    self.emb_dist_col: emb_distances,
                 }
             )
             return df_featured

@@ -1,10 +1,9 @@
-import re
 import random
+import re
 import string
+from typing import List
 
 import matplotlib.pyplot as plt
-
-from typing import List
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from pydantic import BaseModel, Field
@@ -28,7 +27,7 @@ class AliasesResponse(BaseModel):
     aliases: List[str] = Field(
         description="List of valid aliases for the given name",
         max_length=10,
-        min_length=1
+        min_length=1,
     )
 
 
@@ -130,18 +129,23 @@ def generate_typo_name(name: str, prob_flip: float = 0.25) -> str:
     return typo_name
 
 
-def get_mistral_response(client=None, system_prompt="", user_prompt="",
-                         model="mistral-small-latest", messages=[]):
+def get_mistral_response(
+    client=None,
+    system_prompt="",
+    user_prompt="",
+    model="mistral-small-latest",
+    messages=[],
+):
     """
     Get response from Mistral model.
     """
 
     assert client is not None, "Mistral client cannot be None!"
     assert model, "Model name cannot be empty!"
-    
+
     if len(messages) == 0:
         assert len(user_prompt) > 0, "User prompt cannot be empty!"
-        
+
         chat_response = client.chat.complete(
             model=model,
             messages=[
@@ -151,25 +155,28 @@ def get_mistral_response(client=None, system_prompt="", user_prompt="",
                     "role": "user",
                     "content": user_prompt,
                 },
-            ]
+            ],
         )
     else:
-        chat_response = client.chat.complete(model=model, 
-                                             messages=messages)
-    
+        chat_response = client.chat.complete(model=model, messages=messages)
+
     return chat_response.choices[0].message.content
 
 
-def generate_aliases(client, system_prompt, full_name, first_name="", last_name="", model="gpt-4.1-mini"):
+def generate_aliases(
+    client, system_prompt, full_name, first_name="", last_name="", model="gpt-4.1-mini"
+):
     """
     Generate aliases for a given name with prompt caching enabled.
     """
 
     assert client is not None, "OpenAI client cannot be None!"
-    
+
     # Create the user prompt with the parameters
     if first_name and last_name:
-        user_prompt = f"Full name: {full_name}\nFirst name: {first_name}\nLast name: {last_name}"
+        user_prompt = (
+            f"Full name: {full_name}\nFirst name: {first_name}\nLast name: {last_name}"
+        )
     else:
         user_prompt = f"Organization name: {full_name}"
 
@@ -178,25 +185,25 @@ def generate_aliases(client, system_prompt, full_name, first_name="", last_name=
         model=model,
         messages=[
             {
-                "role": "system", 
+                "role": "system",
                 "content": [
                     {
                         "type": "text",
                         "text": system_prompt,
-                        "cache_control": {"type": "ephemeral"}  # Enable caching
+                        "cache_control": {"type": "ephemeral"},  # Enable caching
                     }
-                ]
+                ],
             },
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ],
         response_format=AliasesResponse,
         temperature=0.7,
-        max_tokens=200
+        max_tokens=200,
     )
-    
+
     # Extract the parsed Pydantic object
     aliases_obj = response.choices[0].message.parsed
-    
+
     # Return as comma-separated string
     return "; ".join(aliases_obj.aliases)
 

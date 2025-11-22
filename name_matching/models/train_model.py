@@ -1,15 +1,13 @@
-import time
-import pickle
-import warnings
-import structlog
 import math
-
-import pandas as pd
-import seaborn as sns
-
+import pickle
+import time
+import warnings
 from datetime import datetime
 from typing import Any, List
 
+import pandas as pd
+import seaborn as sns
+import structlog
 from lightgbm import LGBMClassifier
 from matplotlib import pyplot as plt
 from matplotlib import style
@@ -17,10 +15,14 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
 from name_matching.config import read_config
-from name_matching.log.logging import configure_structlog
 from name_matching.features.build_features import FeatureGenerator
+from name_matching.log.logging import configure_structlog
 from name_matching.utils.cli import basic_argparser
-from name_matching.utils.utils import plot_roc_auc, plot_precision_recall_auc, process_text_standard
+from name_matching.utils.utils import (
+    plot_precision_recall_auc,
+    plot_roc_auc,
+    process_text_standard,
+)
 
 config = read_config()
 style.use("fivethirtyeight")
@@ -129,9 +131,7 @@ class NameMatchingTrainer:
             )
 
         # Plot the ROC, PR curves
-        self.plot_model(
-            model, x_train, y_test, y_pred_prob
-        )
+        self.plot_model(model, x_train, y_test, y_pred_prob)
 
         return model
 
@@ -143,8 +143,7 @@ class NameMatchingTrainer:
         fig = plt.figure(figsize=(16, 10))
         ncols = math.ceil(len(self.features_final) / 2)
         axs = [
-            fig.add_subplot(2, ncols, i + 1)
-            for i in range(len(self.features_final))
+            fig.add_subplot(2, ncols, i + 1) for i in range(len(self.features_final))
         ]
 
         for i, feature in enumerate(self.features_final):
@@ -190,9 +189,13 @@ class NameMatchingTrainer:
         self.logger.info("SAVED_ROC_AUC_FIG_TO", file=self.figure_roc_auc)
 
         # Plot the PR curve
-        pr_auc = plot_precision_recall_auc(y_test, y_pred_prob, filename_out=self.figure_precision_recall)
+        pr_auc = plot_precision_recall_auc(
+            y_test, y_pred_prob, filename_out=self.figure_precision_recall
+        )
         self.logger.info("PRECISION_RECALL_AUC", pr_auc=round(pr_auc, 2))
-        self.logger.info("SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_precision_recall)
+        self.logger.info(
+            "SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_precision_recall
+        )
 
         # Plot the feature importance
         feature_importance = pd.DataFrame(
@@ -284,13 +287,25 @@ def main():
     df_pos_pairs[name_y_col] = df_pos_pairs[name_y_col].str.upper()
     df_neg_pairs[name_x_col] = df_neg_pairs[name_x_col].str.upper()
     df_neg_pairs[name_y_col] = df_neg_pairs[name_y_col].str.upper()
-    
+
     # Pre-process the names (lowercase, strip, remove special chars, etc.)
-    df_pos_pairs[name_x_col] = [process_text_standard(name, remove_stopwords=False) for name in df_pos_pairs[name_x_col]]
-    df_pos_pairs[name_y_col] = [process_text_standard(name, remove_stopwords=False) for name in df_pos_pairs[name_y_col]]
-    df_neg_pairs[name_x_col] = [process_text_standard(name, remove_stopwords=False) for name in df_neg_pairs[name_x_col]]
-    df_neg_pairs[name_y_col] = [process_text_standard(name, remove_stopwords=False) for name in df_neg_pairs[name_y_col]]
-    
+    df_pos_pairs[name_x_col] = [
+        process_text_standard(name, remove_stopwords=False)
+        for name in df_pos_pairs[name_x_col]
+    ]
+    df_pos_pairs[name_y_col] = [
+        process_text_standard(name, remove_stopwords=False)
+        for name in df_pos_pairs[name_y_col]
+    ]
+    df_neg_pairs[name_x_col] = [
+        process_text_standard(name, remove_stopwords=False)
+        for name in df_neg_pairs[name_x_col]
+    ]
+    df_neg_pairs[name_y_col] = [
+        process_text_standard(name, remove_stopwords=False)
+        for name in df_neg_pairs[name_y_col]
+    ]
+
     # Create a feature generator object
     generator = FeatureGenerator(logger)
 
@@ -304,7 +319,9 @@ def main():
 
     # Feature engineering (positive)
     df_featured_pos = generator.build_features(
-        df_pos_pairs[name_x_col].tolist(), df_pos_pairs[name_y_col].tolist(), tfidf_vectorizer
+        df_pos_pairs[name_x_col].tolist(),
+        df_pos_pairs[name_y_col].tolist(),
+        tfidf_vectorizer,
     )
     if df_featured_pos is None:
         logger.error("UNEXPECTED_PIPELINE_TERMINATION")
@@ -318,7 +335,9 @@ def main():
 
     # Build the features (negative)
     df_featured_neg = generator.build_features(
-        df_neg_pairs[name_x_col].tolist(), df_neg_pairs[name_y_col].tolist(), tfidf_vectorizer
+        df_neg_pairs[name_x_col].tolist(),
+        df_neg_pairs[name_y_col].tolist(),
+        tfidf_vectorizer,
     )
     if df_featured_neg is None:
         logger.error("UNEXPECTED_PIPELINE_TERMINATION")
@@ -351,7 +370,7 @@ def main():
         sorted_token_ratio_col,
         token_set_ratio_col,
         partial_ratio_col,
-        emb_dist_col
+        emb_dist_col,
     ]
     logger.info("NUM_FINAL_FEATURES", count=len(features_final))
 

@@ -2,7 +2,7 @@ from configparser import ConfigParser
 from os.path import exists
 
 
-def read_config(read_env: bool=False) -> ConfigParser:
+def read_config(read_env: bool = False) -> ConfigParser:
     """
     Read configuration from ini files based on environment if bool=True
 
