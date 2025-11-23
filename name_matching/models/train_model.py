@@ -1,10 +1,10 @@
-import os
 import math
-import time
+import os
 import pickle
+import time
 import warnings
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import optuna
 import pandas as pd
@@ -107,7 +107,9 @@ class NameMatchingTrainer:
             param = {
                 "num_leaves": trial.suggest_int("num_leaves", 5, 50),
                 "max_depth": trial.suggest_int("max_depth", 3, 12),
-                "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+                "learning_rate": trial.suggest_float(
+                    "learning_rate", 0.01, 0.3, log=True
+                ),
                 "n_estimators": trial.suggest_int("n_estimators", 100, 5000, step=100),
                 "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
                 "subsample": trial.suggest_float("subsample", 0.5, 1.0),
