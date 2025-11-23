@@ -1,6 +1,6 @@
 # Name Matching API Documentation
 
-A Flask-based REST API for real-time name matching classification in entity resolution and transaction monitoring.
+A Flask-based REST API for real-time name matching classification for entity resolution and transaction monitoring.
 
 ## Overview
 

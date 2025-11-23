@@ -1,5 +1,6 @@
 import os
 import pickle
+import warnings
 from typing import Any, Dict, Optional, Tuple
 
 import structlog
@@ -8,12 +9,16 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from name_matching.config import read_config
 from name_matching.features.build_features import FeatureGenerator
+from name_matching.log.logging import configure_structlog
 from name_matching.utils.utils import process_text_standard
 
 # Disable tokenizer parallelism to avoid warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 config = read_config()
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
 
 
 class NameMatchingPredictor:
@@ -229,14 +234,106 @@ class NameMatchingPredictor:
         :return: List of prediction result dictionaries
         """
 
-        results = []
-        for pair in name_pairs:
+        results: list[Dict[str, Any]] = [None] * len(name_pairs)
+        valid_pairs = []
+        names_x_processed = []
+        names_y_processed = []
+
+        # Validate and preprocess all name pairs
+        for idx, pair in enumerate(name_pairs):
             name_x = pair.get("name_x", "")
             name_y = pair.get("name_y", "")
             ft_no = pair.get("ft_no", "")
 
-            result = self.predict(name_x, name_y, ft_no, threshold)
-            results.append(result)
+            try:
+                if not name_x or not name_y:
+                    raise ValueError("Both name_x and name_y must be non-empty strings")
+                if not isinstance(name_x, str) or not isinstance(name_y, str):
+                    raise TypeError("Both name_x and name_y must be strings")
+
+                self.logger.info(
+                    "PREDICTION_REQUEST",
+                    name_x=name_x,
+                    name_y=name_y,
+                    ft_no=ft_no if ft_no else "N/A",
+                )
+
+                proc_name_x, proc_name_y = self._preprocess_names(name_x, name_y)
+                names_x_processed.append(proc_name_x)
+                names_y_processed.append(proc_name_y)
+                valid_pairs.append((idx, name_x, name_y, ft_no))
+            except ValueError as e:
+                self.logger.error("VALIDATION_ERROR", error=str(e))
+                results[idx] = {
+                    "error": "Validation error",
+                    "message": str(e),
+                    "ft_no": ft_no if ft_no else None,
+                }
+            except TypeError as e:
+                self.logger.error("TYPE_ERROR", error=str(e))
+                results[idx] = {
+                    "error": "Type error",
+                    "message": str(e),
+                    "ft_no": ft_no if ft_no else None,
+                }
+            except Exception as e:
+                self.logger.error("PREDICTION_ERROR", error=str(e), ft_no=ft_no)
+                results[idx] = {
+                    "error": "Prediction error",
+                    "message": str(e),
+                    "ft_no": ft_no if ft_no else None,
+                }
+
+        if not valid_pairs:
+            return results
+
+        try:
+            # Generate features for all valid pairs
+            df_features = self.feature_generator.build_features(
+                names_x_processed, names_y_processed, self.tfidf_vectorizer
+            )
+
+            if df_features is None or df_features.empty:
+                raise Exception("Feature generation failed")
+            
+            # Get prediction probabilities
+            feature_matrix = df_features[self.features_final].values
+            probs = self.model.predict_proba(feature_matrix)[:, 1]
+
+            # Compile results
+            for i, (idx, name_x, name_y, ft_no) in enumerate(valid_pairs):
+                prob = float(probs[i])
+                prediction = 1 if prob >= threshold else 0
+                match_label = "MATCH" if prediction == 1 else "NO_MATCH"
+
+                results[idx] = {
+                    "ft_no": ft_no if ft_no else None,
+                    "name_x": name_x,
+                    "name_y": name_y,
+                    "prediction": prediction,
+                    "match_label": match_label,
+                    "probability": round(prob, 4),
+                    "threshold": threshold,
+                    "features": {
+                        feature: round(float(df_features.iloc[i][feature]), 4)
+                        for feature in self.features_final
+                    },
+                }
+
+                self.logger.info(
+                    "PREDICTION_RESULT",
+                    ft_no=ft_no if ft_no else "N/A",
+                    prediction=match_label,
+                    probability=round(prob, 4),
+                )
+        except Exception as e:
+            for idx, _, _, ft_no in valid_pairs:
+                results[idx] = {
+                    "error": "Prediction error",
+                    "message": str(e),
+                    "ft_no": ft_no if ft_no else None,
+                }
+            self.logger.error("PREDICTION_ERROR", error=str(e))
 
         return results
 
@@ -245,8 +342,6 @@ def main():
     """Example usage of the NameMatchingPredictor class."""
 
     # Configure logging
-    from name_matching.log.logging import configure_structlog
-
     configure_structlog(silent=False)
     logger = structlog.get_logger()
 

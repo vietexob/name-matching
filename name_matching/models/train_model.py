@@ -32,7 +32,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 config = read_config()
 style.use("fivethirtyeight")
 
-# Suppress pandas warnings
+# Suppress warnings
 warnings.filterwarnings("ignore")
 
 
