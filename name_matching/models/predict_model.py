@@ -295,12 +295,12 @@ class NameMatchingPredictor:
 
             if df_features is None or df_features.empty:
                 raise Exception("Feature generation failed")
-            
+
             # Get prediction probabilities
             feature_matrix = df_features[self.features_final].values
             probs = self.model.predict_proba(feature_matrix)[:, 1]
 
-            # Compile results
+            # Compile the results
             for i, (idx, name_x, name_y, ft_no) in enumerate(valid_pairs):
                 prob = float(probs[i])
                 prediction = 1 if prob >= threshold else 0
@@ -361,6 +361,12 @@ def main():
         {"name_x": "Apple Inc.", "name_y": "Apple Corporation", "ft_no": "FT001"},
         {"name_x": "Microsoft", "name_y": "Amazon", "ft_no": "FT002"},
         {"name_x": "Jane Doe", "name_y": "Jane D.", "ft_no": "FT003"},
+        {"name_x": "John Wick", "name_y": "Jonathan Wick", "ft_no": "FT004"},
+        {
+            "name_x": "Agoda Company Limited",
+            "name_y": "Agoda Co, Ltd",
+            "ft_no": "FT005",
+        },
     ]
     results = predictor.predict_batch(name_pairs, threshold=0.85)
     print(f"\nBatch Results:")

@@ -69,7 +69,7 @@ class TestNameMatchingPredictor:
 
         assert "error" not in result
         assert result["prediction"] in [0, 1]
-        assert result["match_label"] in ["MATCH", "NO_MATCH"]
+        assert result["match_label"] == "MATCH"
         assert 0 <= result["probability"] <= 1
         assert result["ft_no"] == "FT001"
         assert result["name_x"] == "John Smith"
@@ -88,18 +88,19 @@ class TestNameMatchingPredictor:
 
         assert "error" not in result
         assert result["prediction"] in [0, 1]
-        assert result["match_label"] in ["MATCH", "NO_MATCH"]
+        assert result["match_label"] == "NO_MATCH"
         assert 0 <= result["probability"] <= 1
         assert result["ft_no"] == "FT002"
 
     def test_predict_with_empty_ft_no(self, predictor):
         """Test prediction without transaction number."""
         result = predictor.predict(
-            name_x="John Doe", name_y="J. Doe", ft_no="", threshold=0.85
+            name_x="John Doe", name_y="Doe John", ft_no="", threshold=0.8
         )
 
         assert "error" not in result
         assert result["ft_no"] is None
+        assert result["match_label"] == "MATCH"
 
     def test_predict_with_different_thresholds(self, predictor):
         """Test prediction with different threshold values."""
@@ -120,6 +121,8 @@ class TestNameMatchingPredictor:
         assert "error" not in result_high
         # Same probability, different predictions based on threshold
         assert result_low["probability"] == result_high["probability"]
+        assert result_low["match_label"] == "MATCH"
+        assert result_high["match_label"] == "MATCH"
 
     def test_predict_empty_name_validation(self, predictor):
         """Test that empty names are properly validated."""
@@ -161,6 +164,7 @@ class TestNameMatchingPredictor:
         assert "error" not in result
         assert result["prediction"] in [0, 1]
         assert "features" in result
+        assert result["match_label"] == "MATCH"
 
     def test_predict_with_unicode_characters(self, predictor):
         """Test prediction with names containing unicode characters."""
@@ -173,6 +177,7 @@ class TestNameMatchingPredictor:
 
         assert "error" not in result
         assert result["prediction"] in [0, 1]
+        assert result["match_label"] == "MATCH"
 
     def test_predict_batch_success(self, predictor, sample_name_pairs):
         """Test batch prediction with multiple name pairs."""
@@ -239,8 +244,8 @@ class TestNameMatchingPredictor:
             # Most similarity features should be between 0 and 1
             # PARTIAL_RATIO from fuzzywuzzy returns 0-100
             # EMB_DISTANCE can vary depending on the metric used
-            if "EMB_DISTANCE" not in feature_name:
-                if "PARTIAL_RATIO" in feature_name:
+            if feature_name != "EMB_DISTANCE":
+                if feature_name == "PARTIAL_RATIO":
                     assert 0 <= feature_value <= 100, f"{feature_name} out of range"
                 else:
                     assert 0 <= feature_value <= 1, f"{feature_name} out of range"
