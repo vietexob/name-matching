@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a name matching ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
+This is a Name Matching ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
 
 ## Architecture
 
@@ -72,6 +72,18 @@ python -m name_matching.models.train_model --test-size 0.2 --thresh 0.85 --human
 - `-hr, --human-readable`: Pretty-print classification report
 - `-dt, --disable-tqdm`: Disable progress bars
 
+## Installation
+
+Install all dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+Download required NLTK data (for stopwords):
+```bash
+python -c "import nltk; nltk.download('stopwords')"
+```
+
 ## Environment Setup
 
 Required environment variables in `.env`:
@@ -121,3 +133,100 @@ python -m name_matching.data.make_dataset --n_neg 10
 # 3. Train the model
 python -m name_matching.models.train_model --test-size 0.2 --thresh 0.85 --human-readable
 ```
+
+## Testing
+
+### Run All Tests
+```bash
+pytest tests/ -v
+```
+
+### Run Unit Tests Only
+```bash
+pytest tests/unit_tests/ -v
+```
+
+### Run Integration Tests (API Tests)
+```bash
+pytest tests/integration_tests/test_api.py -v
+```
+
+### Run Specific Test File
+```bash
+pytest tests/unit_tests/test_predict_model.py -v
+```
+
+## API Usage
+
+### Running the Flask API
+
+Start the development server:
+```bash
+python app.py
+```
+The API will run on `http://localhost:5001`
+
+For production deployment with Gunicorn:
+```bash
+gunicorn -w 4 -b 0.0.0.0:5001 app:app
+```
+
+### API Endpoints
+
+- `GET /health` - Health check
+- `GET /info` - Model information
+- `POST /predict` - Single name pair prediction
+- `POST /predict/batch` - Batch predictions
+
+### Example API Usage
+
+See `example_api_usage.py` for comprehensive examples. Basic usage:
+
+```bash
+# In terminal 1: Start the API
+python app.py
+
+# In terminal 2: Run examples
+python example_api_usage.py
+```
+
+Or make direct requests:
+```bash
+curl -X POST http://localhost:5001/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "CUST_NAME": "John Smith",
+    "COUNTERPART_NAME": "J. Smith",
+    "FT_NO": "FT12345",
+    "threshold": 0.85
+  }'
+```
+
+## Entity Resolution
+
+The `entity_resolution.py` script implements a complete entity resolution pipeline using graph-based community detection:
+
+```bash
+python entity_resolution.py
+```
+
+### Entity Resolution Architecture
+
+1. **Load & Preprocess**: Loads transaction data, normalizes names using `process_text_standard()`
+2. **Deduplication**: Removes duplicate name pairs
+3. **Pairwise Comparison**: Generates all combinations of unique names (n choose 2)
+4. **Batch Prediction**: Uses trained model to predict matches for all pairs
+5. **Graph Construction**: Creates NetworkX graph where edges represent matched pairs
+6. **Community Detection**: Applies Louvain algorithm to find entity clusters
+7. **Entity Assignment**: Maps original transaction names to resolved entity IDs
+8. **Visualization**: Generates before/after graph visualizations
+
+**Input**: CSV file with `Cust_Name` and `Counterpart_Name` columns
+**Output**:
+- `data/processed/resolved_txns.csv` with `ENTITY_X`, `ENTITY_Y`, `RESOLVED_NAME_X`, `RESOLVED_NAME_Y` columns
+- Graph visualizations in `reports/figures/`
+
+### Entity Resolution vs. Model Training
+
+- **Model Training** (`train_model.py`): Trains the LightGBM classifier on labeled pairs
+- **Entity Resolution** (`entity_resolution.py`): Uses the trained model to consolidate entities in unlabeled transaction data via graph clustering

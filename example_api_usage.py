@@ -18,7 +18,7 @@ Usage:
 import requests
 
 
-def check_api_health(base_url: str = "http://localhost:5000") -> bool:
+def check_api_health(base_url: str = "http://localhost:5001") -> bool:
     """
     Check if the API is running and healthy.
 
@@ -39,7 +39,7 @@ def check_api_health(base_url: str = "http://localhost:5000") -> bool:
         return False
 
 
-def get_model_info(base_url: str = "http://localhost:5000") -> None:
+def get_model_info(base_url: str = "http://localhost:5001") -> None:
     """
     Get and display model information.
 
@@ -59,7 +59,7 @@ def get_model_info(base_url: str = "http://localhost:5000") -> None:
         print(f"Error getting model info: {e}")
 
 
-def example_single_prediction(base_url: str = "http://localhost:5000") -> None:
+def example_single_prediction(base_url: str = "http://localhost:5001") -> None:
     """
     Example of making a single prediction.
 
@@ -107,7 +107,7 @@ def example_single_prediction(base_url: str = "http://localhost:5000") -> None:
         print(f"Error: {e}")
 
 
-def example_batch_prediction(base_url: str = "http://localhost:5000") -> None:
+def example_batch_prediction(base_url: str = "http://localhost:5001") -> None:
     """
     Example of making batch predictions.
 
@@ -175,7 +175,7 @@ def example_batch_prediction(base_url: str = "http://localhost:5000") -> None:
         print(f"Error: {e}")
 
 
-def example_threshold_comparison(base_url: str = "http://localhost:5000") -> None:
+def example_threshold_comparison(base_url: str = "http://localhost:5001") -> None:
     """
     Example showing how different thresholds affect predictions.
 
@@ -219,7 +219,7 @@ def example_threshold_comparison(base_url: str = "http://localhost:5000") -> Non
         print(f"Error: {e}")
 
 
-def example_error_handling(base_url: str = "http://localhost:5000") -> None:
+def example_error_handling(base_url: str = "http://localhost:5001") -> None:
     """
     Example showing error handling for invalid inputs.
 
@@ -277,7 +277,7 @@ def example_error_handling(base_url: str = "http://localhost:5000") -> None:
 
 def main():
     """Run all examples."""
-    base_url = "http://localhost:5000"
+    base_url = "http://localhost:5001"
 
     print("\n" + "=" * 60)
     print("Name Matching API - Usage Examples")
