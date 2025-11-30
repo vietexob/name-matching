@@ -251,12 +251,12 @@ class NameMatchingPredictor:
                 if not isinstance(name_x, str) or not isinstance(name_y, str):
                     raise TypeError("Both name_x and name_y must be strings")
 
-                self.logger.info(
-                    "PREDICTION_REQUEST",
-                    name_x=name_x,
-                    name_y=name_y,
-                    ft_no=ft_no if ft_no else "N/A",
-                )
+                # self.logger.info(
+                #     "PREDICTION_REQUEST",
+                #     name_x=name_x,
+                #     name_y=name_y,
+                #     ft_no=ft_no if ft_no else "N/A",
+                # )
 
                 proc_name_x, proc_name_y = self._preprocess_names(name_x, name_y)
                 names_x_processed.append(proc_name_x)
@@ -320,12 +320,12 @@ class NameMatchingPredictor:
                     },
                 }
 
-                self.logger.info(
-                    "PREDICTION_RESULT",
-                    ft_no=ft_no if ft_no else "N/A",
-                    prediction=match_label,
-                    probability=round(prob, 4),
-                )
+                # self.logger.info(
+                #     "PREDICTION_RESULT",
+                #     ft_no=ft_no if ft_no else "N/A",
+                #     prediction=match_label,
+                #     probability=round(prob, 4),
+                # )
         except Exception as e:
             for idx, _, _, ft_no in valid_pairs:
                 results[idx] = {
