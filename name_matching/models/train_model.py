@@ -222,6 +222,15 @@ class NameMatchingTrainer:
         # Plot the ROC, PR curves
         self.plot_model(model, x_train, y_test, y_pred_prob)
 
+        # Retrain the model on the full training data
+        model.fit(
+            self.df_train[self.features_final],
+            self.df_train[self.label_col],
+            eval_metric="logloss",
+            feature_name="auto",
+            categorical_feature="auto",
+        )
+
         return model
 
     def plot_feature_distributions(self) -> None:
