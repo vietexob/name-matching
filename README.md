@@ -9,7 +9,7 @@ This is a Name Matching ML model for entity resolution and transaction monitorin
 The codebase implements a three-stage ML pipeline:
 
 1. **Data Generation** (`name_matching/data/`)
-   - `generate_names.py`: Creates synthetic names using Faker library for Western/Asian persons and organizations
+   - `generate_names.py`: Creates synthetic names using `Faker` library for Western/Asian persons and organizations
    - `make_dataset.py`: Generates training pairs (positive and negative examples) using Azure OpenAI to create aliases
 
 2. **Feature Engineering** (`name_matching/features/`)
@@ -107,7 +107,7 @@ Names are normalized in `make_dataset.py` via `process_text_standard()`:
 Hard negative mining in `TrainingDataGenerator.generate_neg_mappings()`:
 1. Sample candidates with same first/last name (confusable pairs)
 2. Sort remaining by edit distance
-3. Select top N closest non-matches per positive example
+3. Select top `n` closest non-matches per positive example
 
 ### Model Artifacts
 All models and data stored in directories specified by Config.ini:
@@ -241,7 +241,7 @@ python entity_resolution.py
 
 1. **Load & Preprocess**: Loads transaction data, normalizes names using `process_text_standard()`
 2. **Deduplication**: Removes duplicate name pairs
-3. **Pairwise Comparison**: Generates all combinations of unique names (n choose 2)
+3. **Pairwise Comparison**: Generates all unique pairwise combinations (`n` choose 2 pairs)
 4. **Batch Prediction**: Uses trained model to predict matches for all pairs
 5. **Graph Construction**: Creates NetworkX graph where edges represent matched pairs
 6. **Community Detection**: Applies Louvain algorithm to find entity clusters

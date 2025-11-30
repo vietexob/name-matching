@@ -15,6 +15,10 @@
 set -e  # Exit on error
 set -o pipefail  # Exit on pipe failure
 
+# Set PYTHONPATH to project root to ensure imports work
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="${SCRIPT_DIR}:${PYTHONPATH}"
+
 ################################################################################
 # Default Configuration
 ################################################################################
@@ -86,7 +90,7 @@ show_help() {
     cat << EOF
 Name Matching Pipeline Automation Script
 
-This script automates the complete ML pipeline for name matching:
+This script automates the complete training pipeline for Name Matching:
   1. Generate synthetic names (persons and organizations)
   2. Create training pairs using Azure OpenAI for alias generation
   3. Train the LightGBM classifier
@@ -386,7 +390,7 @@ main() {
     local start_time=$(date +%s)
 
     if [ "$VERBOSE" = true ]; then
-        print_header "Name Matching ML Pipeline"
+        print_header "Name Matching Training Pipeline"
         echo ""
         echo "Configuration:"
         echo "  Names:      $N_PERSONS persons, $N_ORGAS organizations"
