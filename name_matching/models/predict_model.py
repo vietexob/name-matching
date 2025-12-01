@@ -63,6 +63,7 @@ class NameMatchingPredictor:
             config["DATA.COLUMNS"]["TOKEN_SET_RATIO_COL"],
             config["DATA.COLUMNS"]["PARTIAL_RATIO_COL"],
             config["DATA.COLUMNS"]["EMB_DISTANCE_COL"],
+            config["DATA.COLUMNS"]["LEN_DIFF_COL"],
         ]
 
         # Load the trained model and vectorizer

@@ -389,10 +389,10 @@ class EntityResolver:
         # Step 2: Preprocess names
         df_txn = self.preprocess_names(df_txn)
 
-        # Step 3: Deduplicate transactions
+        # Deduplicate transactions using preprocessed names
         df_dedup = self.deduplicate_transactions(df_txn)
 
-        # Step 4: Create and visualize original transaction graph
+        # Step 3: Create and visualize original transaction graph
         orig_graph = self.create_transaction_graph(
             df_dedup, "Cust_Name_Processed", "Counterpart_Name_Processed"
         )
@@ -400,30 +400,30 @@ class EntityResolver:
             orig_graph, output_orig_graph, "Original Transaction Graph"
         )
 
-        # Step 5: Get all unique names
+        # Step 4: Get all unique names
         unique_names = list(
             set(df_dedup["Cust_Name_Processed"].unique()).union(
                 set(df_dedup["Counterpart_Name_Processed"].unique())
             )
         )
 
-        # Step 6: Generate pairwise comparisons
+        # Step 5: Generate pairwise comparisons
         df_pairs = self.generate_pairwise_comparisons(unique_names)
 
-        # Step 7: Predict matches
+        # Step 6: Predict matches
         df_predictions = self.predict_matches(df_pairs, threshold=threshold)
 
-        # Step 8: Create graph from matched pairs
+        # Step 7: Create graph from matched pairs
         df_matches = df_predictions[df_predictions["prediction"] == 1]
         matched_graph = self.create_matched_graph(df_matches)
 
-        # Step 9: Detect communities and get resolved names
+        # Step 8: Detect communities and get resolved names
         entity_mapping, resolved_names = self.detect_communities(matched_graph)
 
-        # Step 10: Assign entity IDs and resolved names to original transactions
+        # Step 9: Assign entity IDs and resolved names to original transactions
         df_resolved = self.assign_entity_ids(df_dedup, entity_mapping, resolved_names)
 
-        # Step 11: Create and visualize resolved graph (using resolved names)
+        # Step 10: Create and visualize resolved graph (using resolved names)
         resolved_graph = self.create_resolved_graph(df_resolved)
         self.visualize_graph(
             resolved_graph, output_resolved_graph, "Resolved Entity Graph"
@@ -483,8 +483,6 @@ def main():
                 "FT_No",
                 "Cust_Name",
                 "Counterpart_Name",
-                "ENTITY_X",
-                "ENTITY_Y",
                 "RESOLVED_NAME_X",
                 "RESOLVED_NAME_Y",
             ]

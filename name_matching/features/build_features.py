@@ -140,6 +140,7 @@ class FeatureGenerator:
         self.token_set_ratio_col = config["DATA.COLUMNS"]["TOKEN_SET_RATIO_COL"]
         self.partial_ratio_col = config["DATA.COLUMNS"]["PARTIAL_RATIO_COL"]
         self.emb_dist_col = config["DATA.COLUMNS"]["EMB_DISTANCE_COL"]
+        self.len_diff_col = config["DATA.COLUMNS"]["LEN_DIFF_COL"]
 
     def build_features(
         self, names_x: List[str], names_y: List[str], tfidf_vectorizer: TfidfVectorizer
@@ -215,6 +216,12 @@ class FeatureGenerator:
             self.logger.info("GENERATING_EMBEDDING_DISTANCE_FEATURES")
             emb_distances = compute_embedding_distances(names_x, names_y)
 
+            # Absolute string length diff
+            len_diffs = [
+                abs(len(name_x) - len(name_y))
+                for name_x, name_y in zip(names_x, names_y)
+            ]
+
             df_featured = pd.DataFrame(
                 {
                     self.jaccard_sim_col: jaccard_xy,
@@ -224,6 +231,7 @@ class FeatureGenerator:
                     self.token_set_ratio_col: token_set_ratios,
                     self.partial_ratio_col: partial_ratios,
                     self.emb_dist_col: emb_distances,
+                    self.len_diff_col: len_diffs,
                 }
             )
             return df_featured

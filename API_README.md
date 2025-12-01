@@ -97,9 +97,10 @@ Get information about the loaded model.
       "SORTED_TOKEN_RATIO",
       "TOKEN_SET_RATIO",
       "PARTIAL_RATIO",
-      "EMB_DISTANCE"
+      "EMB_DISTANCE",
+      "LEN_DIFF"
     ],
-    "num_features": 7
+    "num_features": 8
   }
 }
 ```
@@ -147,7 +148,8 @@ Classify a single name pair.
       "SORTED_TOKEN_RATIO": 0.7143,
       "TOKEN_SET_RATIO": 0.7143,
       "PARTIAL_RATIO": 0.8,
-      "EMB_DISTANCE": 0.9123
+      "EMB_DISTANCE": 0.9123,
+      "LEN_DIFF": 3.0
     }
   }
 }

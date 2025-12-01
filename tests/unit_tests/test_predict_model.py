@@ -54,7 +54,7 @@ class TestNameMatchingPredictor:
         assert predictor.model is not None
         assert predictor.tfidf_vectorizer is not None
         assert predictor.feature_generator is not None
-        assert len(predictor.features_final) == 7
+        assert len(predictor.features_final) == 8
 
     def test_predictor_model_paths_exist(self, predictor):
         """Test that model files exist at specified paths."""
@@ -75,7 +75,7 @@ class TestNameMatchingPredictor:
         assert result["name_x"] == "John Smith"
         assert result["name_y"] == "J. Smith"
         assert "features" in result
-        assert len(result["features"]) == 7
+        assert len(result["features"]) == 8
 
     def test_predict_single_no_match(self, predictor):
         """Test prediction for a non-matching name pair."""
@@ -244,11 +244,14 @@ class TestNameMatchingPredictor:
             # Most similarity features should be between 0 and 1
             # PARTIAL_RATIO from fuzzywuzzy returns 0-100
             # EMB_DISTANCE can vary depending on the metric used
-            if feature_name != "EMB_DISTANCE":
+            # LEN_DIFF is absolute difference in string length (can be any non-negative integer)
+            if feature_name not in ["EMB_DISTANCE", "LEN_DIFF"]:
                 if feature_name == "PARTIAL_RATIO":
                     assert 0 <= feature_value <= 100, f"{feature_name} out of range"
                 else:
                     assert 0 <= feature_value <= 1, f"{feature_name} out of range"
+            elif feature_name == "LEN_DIFF":
+                assert feature_value >= 0, f"{feature_name} should be non-negative"
 
     def test_predictor_with_custom_paths(self, config_ini):
         """Test predictor initialization with custom model paths."""

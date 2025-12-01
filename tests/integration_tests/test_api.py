@@ -75,7 +75,7 @@ class TestInfoEndpoint:
         assert "model_path" in data["model"]
         assert "tfidf_path" in data["model"]
         assert "features" in data["model"]
-        assert data["model"]["num_features"] == 7
+        assert data["model"]["num_features"] == 8
 
 
 class TestPredictEndpoint:

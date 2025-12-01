@@ -83,6 +83,9 @@ class NameMatchingTrainer:
         self.figure_feature_distribution = config["FIGUREPATH"][
             "FIGURE_FEATURE_DISTRIBUTION"
         ]
+        self.figure_probability_density = config["FIGUREPATH"][
+            "FIGURE_PROBABILITY_DENSITY"
+        ]
 
     def optimize_hyperparameters(
         self, x_train: pd.DataFrame, y_train: pd.Series
@@ -266,6 +269,67 @@ class NameMatchingTrainer:
             "SAVED_FEATURE_DISTRIBUTION_FIG_TO", file=self.figure_feature_distribution
         )
 
+    def plot_density(self, y_test: pd.Series, y_pred_prob: List[float]) -> None:
+        """
+        Plots the density distribution of predicted probabilities for each class.
+        This helps visualize the separation between match and no-match classes
+        and aids in selecting an optimal classification threshold.
+
+        :param y_test: True labels for test set
+        :param y_pred_prob: Predicted probabilities for test set
+        """
+
+        # Create DataFrame for easier plotting
+        df_plot = pd.DataFrame(
+            {"probability": y_pred_prob, "true_label": y_test.values}
+        )
+
+        # Create figure
+        plt.figure(figsize=(12, 6))
+
+        # Plot density distributions for each class
+        sns.kdeplot(
+            data=df_plot[df_plot["true_label"] == 0]["probability"],
+            color="darkorange",
+            label="No Match (0)",
+            fill=True,
+            alpha=0.5,
+        )
+        sns.kdeplot(
+            data=df_plot[df_plot["true_label"] == 1]["probability"],
+            color="darkgreen",
+            label="Match (1)",
+            fill=True,
+            alpha=0.5,
+        )
+
+        # Add vertical line at the current threshold
+        plt.axvline(
+            x=self.thresh,
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=f"Threshold = {self.thresh}",
+        )
+
+        # Labels and title
+        plt.xlabel("Predicted Probability", fontsize=12)
+        plt.ylabel("Density", fontsize=12)
+        plt.title(
+            "Probability Density Distribution by True Class\n(Test Set)",
+            fontsize=14,
+            fontweight="bold",
+        )
+        plt.legend(fontsize=11)
+        plt.grid(True, alpha=0.3)
+
+        # Save figure
+        plt.savefig(self.figure_probability_density, bbox_inches="tight", dpi=100)
+        plt.close()
+        self.logger.info(
+            "SAVED_PROBABILITY_DENSITY_FIG_TO", file=self.figure_probability_density
+        )
+
     def plot_model(
         self,
         model: LGBMClassifier,
@@ -294,6 +358,9 @@ class NameMatchingTrainer:
         self.logger.info(
             "SAVED_PRECISION_RECALL_FIG_TO", file=self.figure_precision_recall
         )
+
+        # Plot the probability density distribution
+        self.plot_density(y_test, y_pred_prob)
 
         # Plot the feature importance
         feature_importance = pd.DataFrame(
@@ -374,6 +441,7 @@ def main():
     token_set_ratio_col = config["DATA.COLUMNS"]["TOKEN_SET_RATIO_COL"]
     partial_ratio_col = config["DATA.COLUMNS"]["PARTIAL_RATIO_COL"]
     emb_dist_col = config["DATA.COLUMNS"]["EMB_DISTANCE_COL"]
+    len_diff_col = config["DATA.COLUMNS"]["LEN_DIFF_COL"]
 
     # Load the training data
     logger.info("LOAD_POSITIVE_PAIRS", file=filename_pos_pairs)
@@ -483,6 +551,7 @@ def main():
         token_set_ratio_col,
         partial_ratio_col,
         emb_dist_col,
+        len_diff_col,
     ]
     logger.info("NUM_FINAL_FEATURES", count=len(features_final))
 

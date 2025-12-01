@@ -1,6 +1,6 @@
 ## Project Overview
 
-This is a Name Matching ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
+This implements a Name Matching ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ The codebase implements a three-stage ML pipeline:
    - `make_dataset.py`: Generates training pairs (positive and negative examples) using Azure OpenAI to create aliases
 
 2. **Feature Engineering** (`name_matching/features/`)
-   - `build_features.py`: Computes 7 similarity features between name pairs:
+   - `build_features.py`: Computes 8 similarity features between name pairs:
      - Jaccard similarity (token intersection over union)
      - TF-IDF cosine similarity (requires pre-fitted vectorizer)
      - Ratio feature (normalized edit distance)
@@ -21,6 +21,7 @@ The codebase implements a three-stage ML pipeline:
      - Token set ratio (edit distance on unique sorted tokens)
      - Partial ratio (fuzzy matching)
      - Embedding distance (sentence-transformers: all-MiniLM-L6-v2)
+     - String length absolute difference
 
 3. **Model Training** (`name_matching/models/`)
    - `train_model.py`: Trains LightGBM classifier, generates performance plots, saves model and TF-IDF vectorizer as pickle files
