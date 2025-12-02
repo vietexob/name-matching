@@ -187,7 +187,7 @@ def main():
     logger.info("PERSON_NAMES_DF", df="df_person_names", shape=df_person_names.shape)
 
     # Generate synthetic organization names
-    df_orga_names = generator.gen_fake_orga_names(faker=faker_western, num=num_western)
+    df_orga_names = generator.gen_fake_orga_names(faker=faker_western, num=args.n_orgas)
     logger.info("ORGA_NAMES_DF", df="df_orga_names", shape=df_orga_names.shape)
 
     # Combine both person and orga names
