@@ -85,7 +85,6 @@ python -c "import nltk; nltk.download('stopwords')"
 
 Required environment variables in `.env`:
 ```
-OPENAI_API_KEY=<legacy-key>
 AZURE_OPENAI_API_VERSION=<version>
 AZURE_OPENAI_DEPLOYMENT=<model-name>
 AZURE_OPENAI_API_KEY=<key>

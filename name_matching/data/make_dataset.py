@@ -33,7 +33,7 @@ warnings.filterwarnings("ignore")
 # Load the environment variables
 load_dotenv()
 
-OPENAI_API_TOKEN = os.environ["OPENAI_API_KEY"]
+# OPENAI_API_TOKEN = os.environ["OPENAI_API_KEY"]
 
 AZURE_OPENAI_API_VERSION = os.environ["AZURE_OPENAI_API_VERSION"]
 AZURE_OPENAI_DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT"]
