@@ -1,6 +1,6 @@
 ## Project Overview
 
-This implements a Name Matching ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
+This project implements a Name Matching (machine learning) ML model for entity resolution and transaction monitoring. It uses a LightGBM classifier to determine whether two names (person or organization) refer to the same entity. The model uses multiple string similarity features including edit distance, Jaccard similarity, TF-IDF cosine similarity, and sentence embeddings.
 
 ## Architecture
 
